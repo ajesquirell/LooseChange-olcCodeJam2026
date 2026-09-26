@@ -1,0 +1,45 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/build/*/_deps/*-src/**"
+            ],
+            "defines": ["OLC_PGE3_APPLICATION","OLC_PGEX3_MINIAUDIO","MG_IMPLEMENTATION"],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        },
+        {
+            "name": "Emscripten",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/emsdk/upstream/emscripten/system/include/**",
+                "${workspaceFolder}/build/*/_deps/*-src/**"
+            ],
+            "defines": ["__EMSCRIPTEN__","OLC_PGE3_APPLICATION","OLC_PGEX3_MINIAUDIO","MG_IMPLEMENTATION"],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        },
+        {
+            "name": "MinGW",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/build/*/_deps/*-src/**",
+                "/usr/x86_64-w64-mingw32/include/c++/16.2.0/**",
+                "/usr/x86_64-w64-mingw32/include/**"
+            ],
+            "defines": ["_WIN32","OLC_PGE3_APPLICATION","OLC_PGEX3_MINIAUDIO","MG_IMPLEMENTATION"],
+            "compilerPath": "/usr/bin/x86_64-w64-mingw32-gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "windows-gcc-x86"
+        }
+
+    ],
+    "version": 4
+}
