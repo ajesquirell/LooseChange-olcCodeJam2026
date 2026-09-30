@@ -1,5 +1,6 @@
 // Define OLC_PGE3_APPLICATION to include the implementation of
 // the Pixel Game Engine as part of this translation unit
+#include <numeric>
 #include <string>
 #define OLC_PGE3_APPLICATION
 #include "olcPixelGameEngine3.h"
@@ -9,6 +10,7 @@
 
 #include "utilities/olcUTIL3_Geometry2D.h"
 
+#include <format>
 #include <random>
 
 class Animator
@@ -40,6 +42,11 @@ public:
     olc::ImageRegion GetFrame()
     {
         return spriteSheet.region({ nCurrentFrame * fFramePxSize, 0.0f }, { fFramePxSize, fFramePxSize });
+    }
+    olc::ImageRegion GetStaticFrame()
+    {
+        // Just use first frame
+        return spriteSheet.region({ 0.0f, 0.0f }, { fFramePxSize, fFramePxSize });
     }
 
 private:
@@ -194,7 +201,7 @@ public:
 
         // TODO fix speed when both directions pressed
 
-        if (playerPos.x < boardPosStart.x) playerPos.x = boardPosStart.x;
+        if (playerPos.x < boardPosStart.x + playerSize.x) playerPos.x = boardPosStart.x + playerSize.x;
         if (playerPos.x > ScreenSize().x - playerSize.x) playerPos.x = ScreenSize().x - playerSize.x;
         if (playerPos.y < boardPosStart.y + playerSize.y) playerPos.y = boardPosStart.y + playerSize.y;
         if (playerPos.y > ScreenSize().y - playerSize.y) playerPos.y = ScreenSize().y - playerSize.y;
@@ -204,13 +211,22 @@ public:
                                                   playerSize.x); // TODO change to rect intersection with a real sprite
         for (Coin& coin : coins) {
             olc::vf2d coinPos = coin.GetPos(*this);
-            // utils::geom2d::rect<float> coinRect({ coinPos.x - coinPxSize, coinPos.y - coinPxSize },
-            //                                     { coinPxSize * 2, coinPxSize * 2 });
             utils::geom2d::rect<float> coinRect({ coinPos.x, coinPos.y }, { coinPxSize, coinPxSize });
 
             if (utils::geom2d::overlaps(playerCircle, coinRect)) {
                 // TODO collect coin. Show counter in top bar or above player head
                 coin.isAcquired = true;
+            }
+        }
+
+        bool playerInTheRed = false;
+        if (utils::geom2d::contains(utils::geom2d::rect<float>(boardPosStart, boardPosEnd), playerPos)) {
+            // Player inside board
+            int xIndex = (playerPos.x - boardPosStart.x) / tileSize.x;
+            int yIndex = (playerPos.y - boardPosStart.y) / tileSize.y;
+            int playerTileIdx = yIndex * board.size.x + xIndex;
+            if (playerTileIdx >= 0 && !board.tiles[playerTileIdx]) {
+                playerInTheRed = true;
             }
         }
 
@@ -220,14 +236,21 @@ public:
                 coin.heldTime += fElapsedTime;
 
                 float inflationRate = baseInflationRate;
-                for (int i = 1; i <= PENALTY_INCREMENT_LIMIT; i++) {
-                    if (coin.heldTime > HELD_TIME_PENALTY * i) {
-                        inflationRate += baseInflationRate;
-                    }
+                if (playerInTheRed) {
+                    // ...MASSIVE INFLATION!!!
+                    inflationRate *= 3;
                 }
+
+                // TODO normal percentage might be enough of a challenge for now...
+                // for (int i = 1; i <= PENALTY_INCREMENT_LIMIT; i++) {
+                //     if (coin.heldTime > HELD_TIME_PENALTY * i) {
+                //         inflationRate += baseInflationRate;
+                //     }
+                // }
 
                 // Inflation is happening to decrease value!
                 coin.value -= (coin.value * inflationRate * fElapsedTime);
+                if (coin.value < 0) coin.value = 0;
             }
         }
 
@@ -307,7 +330,6 @@ public:
         for (const Coin& coin : coins) {
             // TODO make a sprite for coins that can be colored
             if (!coin.isAcquired) {
-                // draw.FilledEllipse(coin.GetPos(*this), coinWidth, coinHeight, olc::Colour::DARK_YELLOW);
                 draw.Image(coin.GetImage(*this), coin.GetPos(*this));
             }
         }
@@ -316,6 +338,55 @@ public:
         draw.FilledCircle(playerPos, 5, olc::Colour::GREEN);
 
         // Draw top info
+        static float pulsingTimer = 0;
+        if (playerInTheRed) {
+            // draw.FilledRect({ScreenSize().x / 3.0f, 0}, {ScreenSize().x / 3.0f, boardPosStart.y - 5}, olc::Colour::RED);
+
+            // Box shadow around screen, show "MEGA INFLATION" somewhere?
+            if (std::accumulate(
+                    coins.begin(), coins.end(), 0, [](int acc, const Coin& coin) { return acc + coin.isAcquired; }))
+            {
+                float width = ScreenSize().x;
+                float height = ScreenSize().y;
+                olc::Pixel col = olc::Colour::RED;
+                olc::Pixel blank = olc::Colour::BLANK;
+
+                pulsingTimer += fElapsedTime;
+                float vignetteSize = 30.0f + std::cos(pulsingTimer * 2 * M_PI) * -10;
+
+                draw.FilledRect({ 0, 0 }, { width, vignetteSize }, col, col, blank, blank);
+                draw.FilledRect({ 0, height - vignetteSize }, { width, vignetteSize }, blank, blank, col, col);
+                draw.FilledRect({ 0, 0 }, { vignetteSize, height }, col, blank, col, blank);
+                draw.FilledRect({ width - vignetteSize, 0 }, { vignetteSize, height }, blank, col, blank, col);
+            }
+        } else {
+            pulsingTimer = 0;
+        }
+
+        float totalScore = 0;
+        for (int i = 0; i < coins.size(); i++) {
+            const Coin& coin = coins[i];
+            constexpr float scale = 1.5f;
+            constexpr float distBtwCoins = 50.0f;
+            olc::vf2d pos{ ScreenSize().x / 2.0f - (coinPxSize * 2) - (distBtwCoins * 1.5f),
+                           boardPosStart.y / 2.0f - (coinPxSize * scale) / 2.0f - 10.0f };
+            pos.x += (coinPxSize + distBtwCoins) * i;
+            draw.Image(coin.GetStaticImage(*this), pos, { scale, scale });
+
+            pos.x -= 15;
+            pos.y += coinPxSize + 15;
+            draw.String(pos, std::format("{:^7}", "$" + std::format("{:.2f}", coin.value)));
+
+            totalScore += coin.value;
+        }
+        draw.String({ ScreenSize().x - 110.0f, 10 }, "TOTAL:", olc::Colour::WHITE, { 1.5, 1.5 });
+        draw.String({ ScreenSize().x - 150.0f, 35 },
+                    std::format("{:>7}", "$" + std::format("{:.2f}", totalScore)),
+                    olc::Colour::CYAN,
+                    { 2.5, 2.5 });
+
+        // DEBUG INFO
+        // draw.String({ 5, 5 }, std::to_string(playerTileIdx));
 
 #if OLC_HOST == OLC_HOST_EMSCRIPTEN
         return true;
@@ -373,11 +444,10 @@ private:
         return { boardPosStart.x + tileSize.x * xIndex, boardPosStart.y + tileSize.y * yIndex - 1 };
     }
 
-    // TODO rendered coin dependent on value (bronze, silver, gold, maybe
-    // dollar???)
     struct Coin
     {
-        float value = 1.0f;
+        float value =
+            1.0f; // TODO Allow the numbers to be big enough to be fun. Maybe start at silver so bronze is like a penalty. Maybe you hit bronze quick enough after picking up to show user how it works
         uint32_t tileIndex = 0;
         bool isAcquired = false;
         float heldTime = 0.0f;
@@ -393,16 +463,27 @@ private:
 
         olc::ImageRegion GetImage(LooseChangeEngine& engine) const
         {
+            return get_animator(engine).GetFrame();
+        }
+
+        olc::ImageRegion GetStaticImage(LooseChangeEngine& engine) const
+        {
+            return get_animator(engine).GetStaticFrame();
+        }
+
+    private:
+        Animator& get_animator(LooseChangeEngine& engine) const
+        {
             if (value > 10.0f) {
-                return engine.gemCoin.GetFrame();
+                return engine.gemCoin;
             }
             if (value > 5.0f) {
-                return engine.goldCoin.GetFrame();
+                return engine.goldCoin;
             }
             if (value > 2.0f) {
-                return engine.silverCoin.GetFrame();
+                return engine.silverCoin;
             }
-            return engine.bronzeCoin.GetFrame();
+            return engine.bronzeCoin;
         }
     };
     std::array<Coin, 4> coins;
@@ -410,9 +491,6 @@ private:
 
     // TODO ORRRRRR stepping on red increases your CURRENT inflation rate for the rest of the game!!!! but then user can never recover....
     static constexpr float baseInflationRate = 0.03f; // Percent per second
-    float inflationAcceleration =
-        1.0f; // When a coin is picked up, it loses value the longer it is held - TODO maybe it never resets!?????? Or does the percentage nature take care of it for you???
-    static constexpr float penaltyInflationRate = 6.0f;
 
     // Static increments where inflation rate increases, per coin (seconds)
     static constexpr float HELD_TIME_PENALTY = 5.0f;
