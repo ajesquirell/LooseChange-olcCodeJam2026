@@ -216,17 +216,22 @@ public:
         // ma_engine_listener_set_position(&audio.GetEngine(), 0, 0.0f, distance,
         //                                 0.0f);
 
+        bool up = keyboard.GetKey(olc::Key::UP).bHeld || keyboard.GetKey(olc::Key::W).bHeld;
+        bool down = keyboard.GetKey(olc::Key::DOWN).bHeld || keyboard.GetKey(olc::Key::S).bHeld;
+        bool left = keyboard.GetKey(olc::Key::LEFT).bHeld || keyboard.GetKey(olc::Key::A).bHeld;
+        bool right = keyboard.GetKey(olc::Key::RIGHT).bHeld || keyboard.GetKey(olc::Key::D).bHeld;
+
         olc::vf2d dir;
-        if (keyboard.GetKey(olc::Key::UP).bHeld) dir.y -= 1;
-        if (keyboard.GetKey(olc::Key::DOWN).bHeld) dir.y += 1;
-        if (keyboard.GetKey(olc::Key::LEFT).bHeld) dir.x -= 1;
-        if (keyboard.GetKey(olc::Key::RIGHT).bHeld) dir.x += 1;
+        if (up) dir.y -= 1;
+        if (down) dir.y += 1;
+        if (left) dir.x -= 1;
+        if (right) dir.x += 1;
 
         if (dir.mag2() > 0) {
             playerPos += dir.norm() * playerSpeed * fElapsedTime;
         }
 
-        // TODO fix speed when both directions pressed
+        // TODO add initial "cutscene"
 
         if (playerPos.x < boardPosStart.x + playerSize.x) playerPos.x = boardPosStart.x + playerSize.x;
         if (playerPos.x > exchangeX - playerSize.x) playerPos.x = exchangeX - playerSize.x;
