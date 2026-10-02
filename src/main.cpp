@@ -21,42 +21,66 @@ public:
                       std::string sSpriteSheetFileName,
                       int nFrames,
                       float fFramePxSize,
-                      float fTimePerFrame)
+                      float fTimePerFrame,
+                      bool playOnce = false)
+    {
+        LoadFromFile(pge, sSpriteSheetFileName, nFrames, fFramePxSize, fFramePxSize, fTimePerFrame, playOnce);
+    }
+    void LoadFromFile(PixelGameEngine* pge,
+                      std::string sSpriteSheetFileName,
+                      int nFrames,
+                      float fFramePxSizeX,
+                      float fFramePxSizeY,
+                      float fTimePerFrame,
+                      bool playOnce = false)
     {
         pge->CreateImageFromFile(spriteSheet, sSpriteSheetFileName);
         this->nFrames = nFrames;
-        this->fFramePxSize = fFramePxSize;
+        this->fFramePxSizeX = fFramePxSizeX;
+        this->fFramePxSizeY = fFramePxSizeY;
         this->fTimePerFrame = fTimePerFrame;
+        this->playOnce = playOnce;
     }
     void Update(float fElapsedTime)
     {
+        if (playOnce && hasPlayed) return;
         fTimeCounter += fElapsedTime;
         if (fTimeCounter >= fTimePerFrame) {
             fTimeCounter -= fTimePerFrame;
             nCurrentFrame++;
             if (nCurrentFrame >= nFrames) {
                 nCurrentFrame = 0;
+                hasPlayed = true;
             }
         }
     }
+    void Reset()
+    {
+        fTimeCounter = 0;
+        nCurrentFrame = 0;
+        hasPlayed = false;
+    }
     olc::ImageRegion GetFrame()
     {
-        return spriteSheet.region({ nCurrentFrame * fFramePxSize, 0.0f }, { fFramePxSize, fFramePxSize });
+        return spriteSheet.region({ nCurrentFrame * fFramePxSizeX, 0.0f }, { fFramePxSizeX, fFramePxSizeY });
     }
     olc::ImageRegion GetStaticFrame()
     {
         // Just use first frame
-        return spriteSheet.region({ 0.0f, 0.0f }, { fFramePxSize, fFramePxSize });
+        return spriteSheet.region({ 0.0f, 0.0f }, { fFramePxSizeX, fFramePxSizeY });
     }
 
 private:
     float fTimeCounter = 0;
-    int nCurrentFrame;
+    int nCurrentFrame = 0;
+    bool hasPlayed = false;
 
     olc::Image spriteSheet;
     int nFrames;
-    float fFramePxSize;
+    float fFramePxSizeX;
+    float fFramePxSizeY;
     float fTimePerFrame;
+    bool playOnce;
 };
 
 class LooseChangeEngine : public olc::PixelGameEngine
@@ -100,11 +124,12 @@ public:
         silverCoin.LoadFromFile(this, "assets/coins/silver.png", 5, coinPxSize, 0.1);
         goldCoin.LoadFromFile(this, "assets/coins/gold.png", 5, coinPxSize, 0.1);
         gemCoin.LoadFromFile(this, "assets/coins/gem.png", 4, coinPxSize, 0.1);
+        exCHANGE.LoadFromFile(this, "assets/exCHANGEr_anim.png", 9, 40, 144, 0.1, true);
         CreateImageFromFile(exCHANGEr, "assets/exCHANGEr.png");
 
         boardPosStart.x = 0;
         boardPosStart.y = ScreenSize().y / 5.0f;
-        boardPosEnd.x = ScreenSize().x - ScreenSize().x / 4.0f; // TODO Leaves room on right for exCHANGEr
+        boardPosEnd.x = ScreenSize().x - ScreenSize().x / 4.0f;
         boardPosEnd.y = ScreenSize().y;
         boardTimer = TIMER_DURATION_NORMAL;
         boardState = NORMAL;
@@ -124,6 +149,11 @@ public:
         coins[1].tileIndex = board.size.x - 1;
         coins[2].tileIndex = (board.size.y - 1) * board.size.x;
         coins[3].tileIndex = (board.size.y - 1) * board.size.x + board.size.x - 1;
+
+        exchangeProcessing = false;
+        exchangeProcessingTimer = 0;
+        coinsFlying = false;
+        coinsFlyingTimer = 0;
 
         return true;
     }
@@ -213,11 +243,11 @@ public:
         utils::geom2d::circle<float> playerCircle(playerPos,
                                                   playerSize.x); // TODO change to rect intersection with a real sprite
         for (Coin& coin : coins) {
+            if (coin.isAcquired) continue;
             olc::vf2d coinPos = coin.GetPos(*this);
             utils::geom2d::rect<float> coinRect({ coinPos.x, coinPos.y }, { coinPxSize, coinPxSize });
 
             if (utils::geom2d::overlaps(playerCircle, coinRect)) {
-                // TODO collect coin. Show counter in top bar or above player head
                 coin.isAcquired = true;
             }
         }
@@ -263,27 +293,49 @@ public:
             if (coin.value < 0) coin.value = 0;
         }
 
-        // Update coin exCHANGE
-        if (playerPos.x >= exchangeX - playerSize.x - 2 && playerPos.y >= exchangeYStart && playerPos.y <= exchangeYEnd)
+        // Handle player at the exCHANGE
+        if (playerPos.x >= exchangeX - playerSize.x - 2 && playerPos.y >= exchangeYStart &&
+            playerPos.y <= exchangeYEnd && nCoinsAcquired > 0 && !exchangeProcessing && !coinsFlying)
         {
-            // Player at the exCHANGE. Coins increase in value!
+            exchangeProcessing = true;
+            exchangeProcessingTimer = TIME_EXCHANGE_ANIM;
+            exCHANGE.Reset();
+        }
+        if (exchangeProcessing) {
+            exchangeProcessingTimer -= fElapsedTime;
+            exCHANGE.Update(fElapsedTime);
+            if (exchangeProcessingTimer < 0) {
+                // After exCHANGE, Coins increase in value!
+                for (Coin& coin : coins) {
+                    if (!coin.isAcquired) continue;
+                    static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
 
-            for (Coin& coin : coins) {
-                if (!coin.isAcquired) continue;
-                static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
+                    // coin.value += coin.value * exchangeRate;
+                    coin.value *= exchangeRate;
 
-                // coin.value += coin.value * exchangeRate;
-                coin.value *= exchangeRate;
-                coin.isAcquired = false;
+                    int newTileIdx;
+                    do {
+                        newTileIdx = randomTile(gen);
+                    } while (std::any_of(coins.begin(), coins.end(), [newTileIdx](const Coin& a) {
+                        return a.tileIndex == newTileIdx;
+                    }));
 
-                int newTileIdx;
-                do {
-                    newTileIdx = randomTile(gen);
-                } while (std::any_of(coins.begin(), coins.end(), [newTileIdx](const Coin& a) {
-                    return a.tileIndex == newTileIdx;
-                }));
+                    coin.tileIndex = newTileIdx;
+                }
+                exchangeProcessing = false;
+                coinsFlying = true;
+                coinsFlyingTimer = 1;
+            }
+        }
 
-                coin.tileIndex = newTileIdx;
+        if (coinsFlying) {
+            coinsFlyingTimer -= fElapsedTime;
+            if (coinsFlyingTimer < 0) {
+                for (Coin& coin : coins) {
+                    if (!coin.isAcquired) continue;
+                    coin.isAcquired = false;
+                }
+                coinsFlying = false;
             }
         }
 
@@ -317,17 +369,24 @@ public:
             static float pulsingTimer = 0;
             pulsingTimer += fElapsedTime;
             float vignetteSize = 10.0f + std::cos(pulsingTimer * 2 * M_PI) * -5;
-            draw.FilledRect({ exchangeX - vignetteSize, 168 },
-                            { vignetteSize, 96 },
-                            olc::Colour::BLANK,
-                            olc::Colour::DARK_YELLOW,
-                            olc::Colour::BLANK,
-                            olc::Colour::DARK_YELLOW);
+            olc::Pixel col = nCoinsAcquired < 4 ? olc::Colour::YELLOW : olc::Colour::GREEN;
+            olc::Pixel blank = olc::Colour::BLANK;
+            draw.FilledRect({ exchangeX - vignetteSize, 168 }, { vignetteSize, 96 }, blank, col, blank, col);
         }
-        draw.Image(exCHANGEr, { ScreenSize().x - 80.f, boardPosStart.y }, { 2, 2 });
-        // TODO light up the lights for as many coins that are acquired!!!!!!
+        // draw.Image(exCHANGEr, { ScreenSize().x - 80.f, boardPosStart.y }, { 2, 2 });
+        if (exchangeProcessing) {
+            draw.Image(exCHANGE.GetFrame(), { ScreenSize().x - 80.f, boardPosStart.y }, { 2, 2 });
+        } else {
+            draw.Image(exCHANGE.GetStaticFrame(), { ScreenSize().x - 80.f, boardPosStart.y }, { 2, 2 });
+        }
 
-        // Draw state time remaining bar
+        // Light up exCHANGEr lights
+        draw.FilledRect({ 628, 182 }, { 6, 6 }, nCoinsAcquired >= 1 ? olc::Colour::GREEN : olc::Colour::RED);
+        draw.FilledRect({ 628, 202 }, { 6, 6 }, nCoinsAcquired >= 2 ? olc::Colour::GREEN : olc::Colour::RED);
+        draw.FilledRect({ 628, 224 }, { 6, 6 }, nCoinsAcquired >= 3 ? olc::Colour::GREEN : olc::Colour::RED);
+        draw.FilledRect({ 628, 244 }, { 6, 6 }, nCoinsAcquired >= 4 ? olc::Colour::GREEN : olc::Colour::RED);
+
+        // Draw separator bar
         draw.FilledRect({ 0, boardPosStart.y - 6 }, { (float)ScreenSize().x, 6 }, olc::Colour::BLACK);
         draw.FilledRect({ 1, boardPosStart.y - 5 }, { ScreenSize().x - 1.f, 4 }, olc::Colour::DARK_GREY);
 
@@ -389,7 +448,13 @@ public:
 
         // Draw Coins
         for (const Coin& coin : coins) {
-            if (!coin.isAcquired) {
+            if (coinsFlying && coin.isAcquired) {
+                // Animate coin(s) flying back to new spot
+                float size = std::sin(coinsFlyingTimer * M_PI) * 2.f + 1;
+                draw.Image(coin.GetImage(*this),
+                           olc::vf2d{ 570, 325 }.lerp(coin.GetPos(*this), 1.0f - coinsFlyingTimer),
+                           { size, size });
+            } else if (!coin.isAcquired) {
                 draw.Image(coin.GetImage(*this), coin.GetPos(*this));
             }
         }
@@ -424,8 +489,8 @@ public:
                         olc::Colour::DARK_RED,
                         { 1.8, 1.8 });
         } else {
-            draw.String({ 5, 5 }, std::format("Inflation: {:.0f}% / sec", baseInflationRate * 100));
-            draw.String({ 5, 15 }, std::format("exCHANGE rate: {:.2f}%", exchangeRate));
+            draw.String({ 5, 20 }, std::format("Inflation: {:.0f}% / sec", baseInflationRate * 100));
+            draw.String({ 5, 40 }, std::format("exCHANGE rate: {:.2f}%", exchangeRate));
         }
 
         float totalScore = 0;
@@ -566,6 +631,14 @@ private:
     static constexpr float exchangeYStart = 168.f;
     static constexpr float exchangeYEnd = 264.f;
 
+    bool exchangeProcessing;
+    float exchangeProcessingTimer;
+
+    static constexpr float TIME_EXCHANGE_ANIM = 0.9f;
+
+    bool coinsFlying;
+    float coinsFlyingTimer;
+
     // Assets
     olc::Image background;
     Animator bronzeCoin;
@@ -573,6 +646,7 @@ private:
     Animator goldCoin;
     Animator gemCoin;
     olc::Image exCHANGEr;
+    Animator exCHANGE;
 
     // Randomness helpers
     std::mt19937 gen;
