@@ -125,7 +125,6 @@ public:
         goldCoin.LoadFromFile(this, "assets/coins/gold.png", 5, coinPxSize, 0.1);
         gemCoin.LoadFromFile(this, "assets/coins/gem.png", 4, coinPxSize, 0.1);
         exCHANGE.LoadFromFile(this, "assets/exCHANGEr_anim.png", 9, 40, 144, 0.1, true);
-        CreateImageFromFile(exCHANGEr, "assets/exCHANGEr.png");
 
         boardPosStart.x = 0;
         boardPosStart.y = ScreenSize().y / 5.0f;
@@ -380,10 +379,18 @@ public:
         }
 
         // Light up exCHANGEr lights
-        draw.FilledRect({ 628, 182 }, { 6, 6 }, nCoinsAcquired >= 1 ? olc::Colour::GREEN : olc::Colour::RED);
-        draw.FilledRect({ 628, 202 }, { 6, 6 }, nCoinsAcquired >= 2 ? olc::Colour::GREEN : olc::Colour::RED);
-        draw.FilledRect({ 628, 224 }, { 6, 6 }, nCoinsAcquired >= 3 ? olc::Colour::GREEN : olc::Colour::RED);
-        draw.FilledRect({ 628, 244 }, { 6, 6 }, nCoinsAcquired >= 4 ? olc::Colour::GREEN : olc::Colour::RED);
+        static float lightPulsingTimer = 0;
+        lightPulsingTimer += fElapsedTime;
+        if (lightPulsingTimer > 2) lightPulsingTimer = 0;
+        olc::Pixel blendCol = lightPulsingTimer < 1 ? olc::Colour::WHITE : olc::Colour::GREY;
+        draw.FilledRect(
+            { 628, 182 }, { 6, 6 }, (nCoinsAcquired >= 1 ? olc::Colour::GREEN : olc::Colour::RED).blend(blendCol));
+        draw.FilledRect(
+            { 628, 202 }, { 6, 6 }, (nCoinsAcquired >= 2 ? olc::Colour::GREEN : olc::Colour::RED).blend(blendCol));
+        draw.FilledRect(
+            { 628, 224 }, { 6, 6 }, (nCoinsAcquired >= 3 ? olc::Colour::GREEN : olc::Colour::RED).blend(blendCol));
+        draw.FilledRect(
+            { 628, 244 }, { 6, 6 }, (nCoinsAcquired >= 4 ? olc::Colour::GREEN : olc::Colour::RED).blend(blendCol));
 
         // Draw separator bar
         draw.FilledRect({ 0, boardPosStart.y - 6 }, { (float)ScreenSize().x, 6 }, olc::Colour::BLACK);
@@ -644,7 +651,6 @@ private:
     Animator silverCoin;
     Animator goldCoin;
     Animator gemCoin;
-    olc::Image exCHANGEr;
     Animator exCHANGE;
 
     // Randomness helpers
