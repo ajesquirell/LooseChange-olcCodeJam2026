@@ -241,7 +241,7 @@ public:
         utils::geom2d::circle<float> playerCircle(playerPos,
                                                   playerSize.x); // TODO change to rect intersection with a real sprite
         for (Coin& coin : coins) {
-            if (coin.isAcquired) continue;
+            if (!coin.IsVisibleOnBoard()) continue;
             olc::vf2d coinPos = coin.GetPos(*this);
             utils::geom2d::rect<float> coinRect({ coinPos.x, coinPos.y }, { coinPxSize, coinPxSize });
 
@@ -293,11 +293,18 @@ public:
 
         // Handle player at the exCHANGE
         if (playerPos.x >= exchangeX - playerSize.x - 2 && playerPos.y >= exchangeYStart &&
-            playerPos.y <= exchangeYEnd && nCoinsAcquired > 0 && !exchangeProcessing && !coinsFlying)
+            playerPos.y <= exchangeYEnd && nCoinsAcquired > 0 && !ExchangeBusy())
         {
             exchangeProcessing = true;
             exchangeProcessingTimer = TIME_EXCHANGE_ANIM;
             exCHANGE.Reset();
+
+            for (Coin& coin : coins) {
+                if (coin.isAcquired) {
+                    coin.isAcquired = false;
+                    coin.isExchanging = true;
+                }
+            }
         }
         if (exchangeProcessing) {
             exchangeProcessingTimer -= fElapsedTime;
@@ -305,7 +312,7 @@ public:
             if (exchangeProcessingTimer < 0) {
                 // After exCHANGE, Coins increase in value!
                 for (Coin& coin : coins) {
-                    if (!coin.isAcquired) continue;
+                    if (!coin.isExchanging) continue;
                     static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
 
                     // coin.value += coin.value * exchangeRate;
@@ -330,8 +337,10 @@ public:
             coinsFlyingTimer -= fElapsedTime;
             if (coinsFlyingTimer < 0) {
                 for (Coin& coin : coins) {
-                    if (!coin.isAcquired) continue;
-                    coin.isAcquired = false;
+                    if (coin.isExchanging) {
+                        coin.isAcquired = false;
+                        coin.isExchanging = false;
+                    }
                 }
                 coinsFlying = false;
             }
@@ -454,13 +463,13 @@ public:
 
         // Draw Coins
         for (const Coin& coin : coins) {
-            if (coinsFlying && coin.isAcquired) {
+            if (coinsFlying && coin.isExchanging) {
                 // Animate coin(s) flying back to new spot
                 float size = std::sin(coinsFlyingTimer * M_PI) * 2.f + 1;
                 draw.Image(coin.GetImage(*this),
                            olc::vf2d{ 570, 325 }.lerp(coin.GetPos(*this), 1.0f - coinsFlyingTimer),
                            { size, size });
-            } else if (!coin.isAcquired) {
+            } else if (coin.IsVisibleOnBoard()) {
                 draw.Image(coin.GetImage(*this), coin.GetPos(*this));
             }
         }
@@ -587,6 +596,11 @@ private:
             1.0f; // TODO Allow the numbers to be big enough to be fun. Maybe start at silver so bronze is like a penalty. Maybe you hit bronze quick enough after picking up to show user how it works
         uint32_t tileIndex = 0;
         bool isAcquired = false;
+        bool isExchanging = false; // TODO maybe make a state enum, because can't be both true at the same time
+        bool IsVisibleOnBoard() const
+        {
+            return !isAcquired && !isExchanging;
+        }
 
         // TODO consider having coin positions in float space - might make it more interesting if they are between tiles
         olc::vf2d GetPos(LooseChangeEngine& engine) const
@@ -644,6 +658,10 @@ private:
 
     bool coinsFlying;
     float coinsFlyingTimer;
+    bool ExchangeBusy()
+    {
+        return exchangeProcessing || coinsFlying;
+    }
 
     // Assets
     olc::Image background;
