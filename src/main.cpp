@@ -216,20 +216,14 @@ public:
         // ma_engine_listener_set_position(&audio.GetEngine(), 0, 0.0f, distance,
         //                                 0.0f);
 
-        if (keyboard.GetKey(olc::Key::UP).bHeld) {
-            playerPos.y -= playerSpeed * fElapsedTime;
-        }
+        olc::vf2d dir;
+        if (keyboard.GetKey(olc::Key::UP).bHeld) dir.y -= 1;
+        if (keyboard.GetKey(olc::Key::DOWN).bHeld) dir.y += 1;
+        if (keyboard.GetKey(olc::Key::LEFT).bHeld) dir.x -= 1;
+        if (keyboard.GetKey(olc::Key::RIGHT).bHeld) dir.x += 1;
 
-        if (keyboard.GetKey(olc::Key::DOWN).bHeld) {
-            playerPos.y += playerSpeed * fElapsedTime;
-        }
-
-        if (keyboard.GetKey(olc::Key::LEFT).bHeld) {
-            playerPos.x -= playerSpeed * fElapsedTime;
-        }
-
-        if (keyboard.GetKey(olc::Key::RIGHT).bHeld) {
-            playerPos.x += playerSpeed * fElapsedTime;
+        if (dir.mag2() > 0) {
+            playerPos += dir.norm() * playerSpeed * fElapsedTime;
         }
 
         // TODO fix speed when both directions pressed
@@ -547,7 +541,7 @@ private:
 
     olc::vf2d playerPos;
     olc::vf2d playerSize;
-    const float playerSpeed = 120.0f;
+    const float playerSpeed = 150.0f;
 
     struct Board
     {
