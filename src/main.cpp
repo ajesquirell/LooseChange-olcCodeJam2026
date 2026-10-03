@@ -126,33 +126,7 @@ public:
         gemCoin.LoadFromFile(this, "assets/coins/gem.png", 4, coinPxSize, 0.1);
         exCHANGE.LoadFromFile(this, "assets/exCHANGEr_anim.png", 9, 40, 144, 0.1, true);
 
-        boardPosStart.x = 0;
-        boardPosStart.y = ScreenSize().y / 5.0f;
-        boardPosEnd.x = ScreenSize().x - ScreenSize().x / 4.0f;
-        boardPosEnd.y = ScreenSize().y;
-        boardTimer = TIMER_DURATION_NORMAL;
-        boardState = NORMAL;
-        board.tiles.fill(false); // Start with all bad except for player tile - TODO should we do this??
-        board.tiles[board.tiles.size() / 2] = true;
-
-        olc::vf2d boardPxSize = boardPosEnd - boardPosStart;
-
-        // Player start on middle tile, which is always safe to start
-        playerPos = { boardPosStart.x + boardPxSize.x / 2.f, boardPosStart.y + boardPxSize.y / 2.f };
-        playerSize = { 5, 5 };
-
-        tileSize = { boardPxSize.x / board.size.x, boardPxSize.y / board.size.y };
-
-        // TODO Start with animation that spits coins to corners
-        coins[0].tileIndex = 0;
-        coins[1].tileIndex = board.size.x - 1;
-        coins[2].tileIndex = (board.size.y - 1) * board.size.x;
-        coins[3].tileIndex = (board.size.y - 1) * board.size.x + board.size.x - 1;
-
-        exchangeProcessing = false;
-        exchangeProcessingTimer = 0;
-        coinsFlying = false;
-        coinsFlyingTimer = 0;
+        ResetGame();
 
         return true;
     }
@@ -215,6 +189,44 @@ public:
         // ma_engine_listener_set_position(&audio.GetEngine(), 0, 0.0f, distance,
         //                                 0.0f);
 
+        if (keyboard.GetKey(olc::Key::ESCAPE).bPressed) {
+            isPaused = !isPaused;
+            draw.FilledRect({ 0, 0 }, ScreenSize(), overlayColor);
+        }
+        if (isPaused) {
+            draw.FilledRoundedRect({ 94, ScreenSize().y / 2.f - 4 }, { 418, 54 }, 5, olc::Colour::VERY_DARK_GREY);
+            draw.String({ 98, ScreenSize().y / 2.f }, "PAUSED\nPress ESC to Play", olc::Colour::GREY, { 3, 3 });
+            return true;
+        }
+
+        bool prevGameOver = gameOver;
+        if (gameTimer < 0) gameOver = true;
+        if (!prevGameOver && gameOver) {
+            draw.FilledRect({ 0, 0 }, ScreenSize(), overlayColor);
+        }
+        if (gameOver) {
+            float totalScore =
+                std::accumulate(coins.begin(), coins.end(), 0, [](float acc, const Coin& c) { return acc + c.value; });
+            std::string s1 = "GAME OVER";
+            std::string s2 = std::format("TOTAL SCORE: ${:.2f}", totalScore);
+            std::string s3 = "Press any key to restart!";
+            float p1 = ScreenSize().x / 2.0f - ((s1.size() / 2.0f) * 32);
+            float p2 = ScreenSize().x / 2.0f - ((s2.size() / 2.0f) * 24);
+            float p3 = ScreenSize().x / 2.0f - ((s3.size() / 2.0f) * 24);
+            draw.String({ p1, ScreenSize().y / 6.f }, s1, olc::Colour::RED, { 4, 4 });
+            draw.String({ p2, ScreenSize().y / 6.f + 48 }, s2, olc::Colour::WHITE, { 3, 3 });
+
+            // TODO list of scores and how good you did!!!!!
+            draw.String({ p3, ScreenSize().y / 6.f + 96 }, s3, olc::Colour::BLUE, { 3, 3 });
+
+            if (keyboard.GetKeyCache().size() > 0) {
+                ResetGame();
+            }
+            return true;
+        }
+
+        float normRemainingGameTime = gameTimer / TOTAL_GAME_TIME;
+
         bool up = keyboard.GetKey(olc::Key::UP).bHeld || keyboard.GetKey(olc::Key::W).bHeld;
         bool down = keyboard.GetKey(olc::Key::DOWN).bHeld || keyboard.GetKey(olc::Key::S).bHeld;
         bool left = keyboard.GetKey(olc::Key::LEFT).bHeld || keyboard.GetKey(olc::Key::A).bHeld;
@@ -263,21 +275,9 @@ public:
         int nCoinsAcquired = std::accumulate(coins.begin(), coins.end(), 0, [](int acc, const Coin& coin) {
             return acc + (int)coin.isAcquired;
         });
-        float exchangeRate = 1.f;
-        switch (nCoinsAcquired) {
-        case 1:
-            exchangeRate = 1.10f;
-            break;
-        case 2:
-            exchangeRate = 1.25f;
-            break;
-        case 3:
-            exchangeRate = 1.5f;
-            break;
-        case 4:
-            exchangeRate = 2.0f;
-            break;
-        }
+
+        // TODO!!!!!!!!!!!!!!!!!!!!!.......................................................................................................
+        // Should increase rate if all 4 returned ??? How would that affect balance??? Would be more fun???
 
         // Update Coins
         for (Coin& coin : coins) {
@@ -299,6 +299,8 @@ public:
             exchangeProcessingTimer = TIME_EXCHANGE_ANIM;
             exCHANGE.Reset();
 
+            exchangeRate = GetExchangeRate(nCoinsAcquired);
+
             for (Coin& coin : coins) {
                 if (coin.isAcquired) {
                     coin.isAcquired = false;
@@ -313,13 +315,12 @@ public:
                 // After exCHANGE, Coins increase in value!
                 for (Coin& coin : coins) {
                     if (!coin.isExchanging) continue;
-                    static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
-
-                    // coin.value += coin.value * exchangeRate;
                     coin.value *= exchangeRate;
+                    coin.isRenderingMultiplier = true;
 
                     int newTileIdx;
                     do {
+                        static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
                         newTileIdx = randomTile(gen);
                     } while (std::any_of(coins.begin(), coins.end(), [newTileIdx](const Coin& a) {
                         return a.tileIndex == newTileIdx;
@@ -330,6 +331,7 @@ public:
                 exchangeProcessing = false;
                 coinsFlying = true;
                 coinsFlyingTimer = 1;
+                renderExchangeRateTimer = 1;
             }
         }
 
@@ -346,6 +348,12 @@ public:
             }
         }
 
+        if (renderExchangeRateTimer > 0)
+            renderExchangeRateTimer -= fElapsedTime;
+        else
+            for (Coin& coin : coins)
+                coin.isRenderingMultiplier = false;
+
         // Update board
         boardTimer -= fElapsedTime;
         if (boardTimer < 0) {
@@ -355,9 +363,10 @@ public:
             } else if (boardState == UPDATING_FADEOUT) {
                 boardTimer = TIMER_DURATION_UPDATING_FADEIN;
                 boardState = UPDATING_FADEIN;
+                float probability = (0.75 - 0.25) * normRemainingGameTime +
+                                    0.25; // 75% of safe at start, getting harder to 25% by end of game
+                std::bernoulli_distribution randomBool(probability);
                 for (int i = 0; i < board.tiles.size(); i++) {
-                    // TODO need to be more aggressive as time goes on, or as values get higher
-                    static std::uniform_int_distribution<int> randomBool(0, 1);
                     board.tiles[i] = randomBool(gen);
                 }
             } else {
@@ -380,7 +389,6 @@ public:
             olc::Pixel blank = olc::Colour::BLANK;
             draw.FilledRect({ exchangeX - vignetteSize, 168 }, { vignetteSize, 96 }, blank, col, blank, col);
         }
-        // draw.Image(exCHANGEr, { ScreenSize().x - 80.f, boardPosStart.y }, { 2, 2 });
         if (exchangeProcessing) {
             draw.Image(exCHANGE.GetFrame(), { ScreenSize().x - 80.f, boardPosStart.y }, { 2, 2 });
         } else {
@@ -405,21 +413,13 @@ public:
         draw.FilledRect({ 0, boardPosStart.y - 6 }, { (float)ScreenSize().x, 6 }, olc::Colour::BLACK);
         draw.FilledRect({ 1, boardPosStart.y - 5 }, { ScreenSize().x - 1.f, 4 }, olc::Colour::DARK_GREY);
 
-        // TODO I actually don't think I like the bar timer
-        // float normBarTime = 0;
-        // if (boardState == NORMAL) {
-        //     float barDuration = TIMER_DURATION_NORMAL;
-        //     normBarTime = boardTimer / barDuration;
-        // } else {
-        //     float renderTimer = boardTimer;
-        //     if (boardState == UPDATING_FADEOUT) {
-        //         renderTimer += TIMER_DURATION_UPDATING_FADEIN;
-        //     }
-        //     float barDuration = TIMER_DURATION_UPDATING_FADEOUT + TIMER_DURATION_UPDATING_FADEIN;
-        //     normBarTime = 1.0f - renderTimer / barDuration;
-        // }
-        // draw.FilledRect(
-        //     { 1, boardPosStart.y - 5 }, { normBarTime * (ScreenSize().x - 1.f), 4 }, olc::Colour::DARK_MAGENTA);
+        // Draw game timer bar
+        draw.FilledRect({ ScreenSize().x / 2.0f, boardPosStart.y - 5 },
+                        { normRemainingGameTime * (ScreenSize().x / 2.0f - 1.f), 4 },
+                        olc::Colour::DARK_MAGENTA);
+        draw.FilledRect({ ScreenSize().x / 2.0f, boardPosStart.y - 5 },
+                        { -normRemainingGameTime * (ScreenSize().x / 2.0f - 1.f), 4 },
+                        olc::Colour::DARK_MAGENTA);
 
         // Update coin animations
         bronzeCoin.Update(fElapsedTime);
@@ -505,7 +505,6 @@ public:
                         { 1.8, 1.8 });
         } else {
             draw.String({ 5, 20 }, std::format("Inflation: {:.0f}% / sec", baseInflationRate * 100));
-            draw.String({ 5, 40 }, std::format("exCHANGE rate: {:.2f}%", exchangeRate));
         }
 
         float totalScore = 0;
@@ -522,6 +521,13 @@ public:
             pos.y += coinPxSize + 15;
             draw.String(pos, std::format("{:^7}", "$" + std::format("{:.2f}", coin.value)));
 
+            if (coin.isRenderingMultiplier && renderExchangeRateTimer > 0) {
+                olc::Pixel col = PixelLerp(olc::Colour::BLANK, olc::Colour::CYAN, renderExchangeRateTimer);
+                draw.String(pos + olc::vf2d{ 40, -20 + 10 * renderExchangeRateTimer },
+                            std::format("x{:.1f}", exchangeRate),
+                            col);
+            }
+
             totalScore += coin.value;
         }
         draw.String({ ScreenSize().x - 110.0f, 10 }, "TOTAL:", olc::Colour::WHITE, { 1.5, 1.5 });
@@ -530,15 +536,9 @@ public:
                     olc::Colour::CYAN,
                     { 2.5, 2.5 });
 
-        // DEBUG INFO
-        // draw.String({ 5, 5 }, std::to_string(playerTileIdx));
-        // draw.String({ 5, 5 }, std::format("{:.2f}{:.2f}", playerPos.x, playerPos.y));
+        gameTimer -= fElapsedTime;
 
-#if OLC_HOST == OLC_HOST_EMSCRIPTEN
         return true;
-#else
-        return !keyboard.GetKey(olc::Key::ESCAPE).bPressed;
-#endif
     }
 
     // put this here to have access to audio!
@@ -602,7 +602,8 @@ private:
             return !isAcquired && !isExchanging;
         }
 
-        // TODO consider having coin positions in float space - might make it more interesting if they are between tiles
+        bool isRenderingMultiplier = false;
+
         olc::vf2d GetPos(LooseChangeEngine& engine) const
         {
             int xIndex = tileIndex % engine.board.size.x;
@@ -639,7 +640,6 @@ private:
     std::array<Coin, 4> coins;
     static constexpr int coinPxSize = 16;
 
-    // TODO ORRRRRR stepping on red increases your CURRENT inflation rate for the rest of the game!!!! but then user can never recover....
     static constexpr float baseInflationRate = 0.03f; // Percent per second
     static constexpr float megaInflationRate = baseInflationRate * 4;
 
@@ -663,6 +663,30 @@ private:
         return exchangeProcessing || coinsFlying;
     }
 
+    float exchangeRate;
+    float renderExchangeRateTimer;
+    float GetExchangeRate(int nCoins)
+    {
+        switch (nCoins) {
+        case 1:
+            return 1.1f;
+        case 2:
+            return 1.3f;
+        case 3:
+            return 1.6f;
+        case 4:
+            return 2.0f;
+        default:
+            return 1.0f;
+        }
+    }
+
+    bool gameOver;
+    float gameTimer;
+    static constexpr float TOTAL_GAME_TIME = 90.0f;
+
+    bool isPaused;
+
     // Assets
     olc::Image background;
     Animator bronzeCoin;
@@ -673,6 +697,49 @@ private:
 
     // Randomness helpers
     std::mt19937 gen;
+
+    // TODO make a PR that fixes the need to do this?
+    static constexpr olc::Pixel overlayColor{ olc::Colour::BLACK.r, olc::Colour::BLACK.g, olc::Colour::BLACK.b, 150 };
+
+    void ResetGame()
+    {
+        boardPosStart.x = 0;
+        boardPosStart.y = ScreenSize().y / 5.0f;
+        boardPosEnd.x = ScreenSize().x - ScreenSize().x / 4.0f;
+        boardPosEnd.y = ScreenSize().y;
+        boardTimer = TIMER_DURATION_NORMAL;
+        boardState = NORMAL;
+        board.tiles.fill(false); // Start with all bad except for player tile - TODO should we do this??
+        board.tiles[board.tiles.size() / 2] = true;
+
+        olc::vf2d boardPxSize = boardPosEnd - boardPosStart;
+
+        // Player start on middle tile, which is always safe to start
+        playerPos = { boardPosStart.x + boardPxSize.x / 2.f, boardPosStart.y + boardPxSize.y / 2.f };
+        playerSize = { 5, 5 };
+
+        tileSize = { boardPxSize.x / board.size.x, boardPxSize.y / board.size.y };
+
+        coins.fill(Coin());
+
+        // TODO Start with animation that spits coins to corners
+        coins[0].tileIndex = 0;
+        coins[1].tileIndex = board.size.x - 1;
+        coins[2].tileIndex = (board.size.y - 1) * board.size.x;
+        coins[3].tileIndex = (board.size.y - 1) * board.size.x + board.size.x - 1;
+
+        exchangeProcessing = false;
+        exchangeProcessingTimer = 0;
+        coinsFlying = false;
+        coinsFlyingTimer = 0;
+
+        exchangeRate = 0;
+        renderExchangeRateTimer = 0;
+
+        gameTimer = TOTAL_GAME_TIME;
+        gameOver = false;
+        isPaused = false;
+    }
 };
 
 // Main entry point for the application
