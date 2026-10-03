@@ -209,7 +209,7 @@ public:
                 std::accumulate(coins.begin(), coins.end(), 0, [](float acc, const Coin& c) { return acc + c.value; });
             std::string s1 = "GAME OVER";
             std::string s2 = std::format("TOTAL SCORE: ${:.2f}", totalScore);
-            std::string s3 = "Press any key to restart!";
+            std::string s3 = "Press SPACE to restart!";
             float p1 = ScreenSize().x / 2.0f - ((s1.size() / 2.0f) * 32);
             float p2 = ScreenSize().x / 2.0f - ((s2.size() / 2.0f) * 24);
             float p3 = ScreenSize().x / 2.0f - ((s3.size() / 2.0f) * 24);
@@ -219,7 +219,7 @@ public:
             // TODO list of scores and how good you did!!!!!
             draw.String({ p3, ScreenSize().y / 6.f + 96 }, s3, olc::Colour::BLUE, { 3, 3 });
 
-            if (keyboard.GetKeyCache().size() > 0) {
+            if (keyboard.GetKey(olc::Key::SPACE).bReleased) {
                 ResetGame();
             }
             return true;
@@ -227,22 +227,22 @@ public:
 
         float normRemainingGameTime = gameTimer / TOTAL_GAME_TIME;
 
-        bool up = keyboard.GetKey(olc::Key::UP).bHeld || keyboard.GetKey(olc::Key::W).bHeld;
-        bool down = keyboard.GetKey(olc::Key::DOWN).bHeld || keyboard.GetKey(olc::Key::S).bHeld;
-        bool left = keyboard.GetKey(olc::Key::LEFT).bHeld || keyboard.GetKey(olc::Key::A).bHeld;
-        bool right = keyboard.GetKey(olc::Key::RIGHT).bHeld || keyboard.GetKey(olc::Key::D).bHeld;
+        if (!initialCutscene) {
+            bool up = keyboard.GetKey(olc::Key::UP).bHeld || keyboard.GetKey(olc::Key::W).bHeld;
+            bool down = keyboard.GetKey(olc::Key::DOWN).bHeld || keyboard.GetKey(olc::Key::S).bHeld;
+            bool left = keyboard.GetKey(olc::Key::LEFT).bHeld || keyboard.GetKey(olc::Key::A).bHeld;
+            bool right = keyboard.GetKey(olc::Key::RIGHT).bHeld || keyboard.GetKey(olc::Key::D).bHeld;
 
-        olc::vf2d dir;
-        if (up) dir.y -= 1;
-        if (down) dir.y += 1;
-        if (left) dir.x -= 1;
-        if (right) dir.x += 1;
+            olc::vf2d dir;
+            if (up) dir.y -= 1;
+            if (down) dir.y += 1;
+            if (left) dir.x -= 1;
+            if (right) dir.x += 1;
 
-        if (dir.mag2() > 0) {
-            playerPos += dir.norm() * playerSpeed * fElapsedTime;
+            if (dir.mag2() > 0) {
+                playerPos += dir.norm() * playerSpeed * fElapsedTime;
+            }
         }
-
-        // TODO add initial "cutscene"
 
         if (playerPos.x < boardPosStart.x + playerSize.x) playerPos.x = boardPosStart.x + playerSize.x;
         if (playerPos.x > exchangeX - playerSize.x) playerPos.x = exchangeX - playerSize.x;
@@ -275,9 +275,6 @@ public:
         int nCoinsAcquired = std::accumulate(coins.begin(), coins.end(), 0, [](int acc, const Coin& coin) {
             return acc + (int)coin.isAcquired;
         });
-
-        // TODO!!!!!!!!!!!!!!!!!!!!!.......................................................................................................
-        // Should increase rate if all 4 returned ??? How would that affect balance??? Would be more fun???
 
         // Update Coins
         for (Coin& coin : coins) {
@@ -313,20 +310,22 @@ public:
             exCHANGE.Update(fElapsedTime);
             if (exchangeProcessingTimer < 0) {
                 // After exCHANGE, Coins increase in value!
-                for (Coin& coin : coins) {
-                    if (!coin.isExchanging) continue;
-                    coin.value *= exchangeRate;
-                    coin.isRenderingMultiplier = true;
+                if (!initialCutscene) {
+                    for (Coin& coin : coins) {
+                        if (!coin.isExchanging) continue;
+                        coin.value *= exchangeRate;
+                        coin.isRenderingMultiplier = true;
 
-                    int newTileIdx;
-                    do {
-                        static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
-                        newTileIdx = randomTile(gen);
-                    } while (std::any_of(coins.begin(), coins.end(), [newTileIdx](const Coin& a) {
-                        return a.tileIndex == newTileIdx;
-                    }));
+                        int newTileIdx;
+                        do {
+                            static std::uniform_int_distribution<int> randomTile(0, board.tiles.size() - 1);
+                            newTileIdx = randomTile(gen);
+                        } while (std::any_of(coins.begin(), coins.end(), [newTileIdx](const Coin& a) {
+                            return a.tileIndex == newTileIdx;
+                        }));
 
-                    coin.tileIndex = newTileIdx;
+                        coin.tileIndex = newTileIdx;
+                    }
                 }
                 exchangeProcessing = false;
                 coinsFlying = true;
@@ -363,11 +362,17 @@ public:
             } else if (boardState == UPDATING_FADEOUT) {
                 boardTimer = TIMER_DURATION_UPDATING_FADEIN;
                 boardState = UPDATING_FADEIN;
-                float probability = (0.75 - 0.25) * normRemainingGameTime +
-                                    0.25; // 75% of safe at start, getting harder to 25% by end of game
+                // Probability of safe tiles gets less and less throughout the game
+                constexpr float min = 0.15;
+                constexpr float max = 0.80;
+                float probability = (max - min) * normRemainingGameTime + min;
                 std::bernoulli_distribution randomBool(probability);
                 for (int i = 0; i < board.tiles.size(); i++) {
                     board.tiles[i] = randomBool(gen);
+                }
+                if (initialCutscene) {
+                    // Ensure first change does not insta-hurt player
+                    board.tiles[board.tiles.size() / 2] = true;
                 }
             } else {
                 boardTimer = TIMER_DURATION_NORMAL;
@@ -411,7 +416,7 @@ public:
 
         // Draw separator bar
         draw.FilledRect({ 0, boardPosStart.y - 6 }, { (float)ScreenSize().x, 6 }, olc::Colour::BLACK);
-        draw.FilledRect({ 1, boardPosStart.y - 5 }, { ScreenSize().x - 1.f, 4 }, olc::Colour::DARK_GREY);
+        draw.FilledRect({ 1, boardPosStart.y - 5 }, { ScreenSize().x - 2.f, 4 }, olc::Colour::DARK_GREY);
 
         // Draw game timer bar
         draw.FilledRect({ ScreenSize().x / 2.0f, boardPosStart.y - 5 },
@@ -433,6 +438,10 @@ public:
                 olc::vf2d pos = GetTilePos(x, y);
                 std::size_t tile_index = y * board.size.x + x;
                 olc::Pixel color = board.tiles[tile_index] ? olc::Colour::BLUE : olc::Colour::RED;
+
+                if (initialCutscene) {
+                    color = olc::Colour::VERY_DARK_GREY;
+                }
 
                 switch (boardState) {
                 case UPDATING_FADEOUT: {
@@ -536,8 +545,30 @@ public:
                     olc::Colour::CYAN,
                     { 2.5, 2.5 });
 
-        gameTimer -= fElapsedTime;
+        if (!initialCutscene) {
+            gameTimer -= fElapsedTime;
+        }
 
+        if (initialCutscene) {
+            initialCutsceneTimer += fElapsedTime;
+            if (initialCutsceneTimer > 4) {
+                std::string s1 = "exCHANGE!";
+                olc::vf2d p1 = { ScreenSize().x / 2.f - (s1.size() / 2.f) * 48, ScreenSize().y / 2.f };
+                draw.FilledRoundedRect({ 94, ScreenSize().y / 2.f - 6 }, { 444, 58 }, 5, olc::Colour::VERY_DARK_GREY);
+                draw.String(p1, s1, olc::Colour::WHITE, { 6, 6 });
+            } else if (initialCutsceneTimer > 3) {
+                std::string s1 = "SET";
+                olc::vf2d p1 = { ScreenSize().x / 2.f - (s1.size() / 2.f) * 32, ScreenSize().y / 2.f };
+                draw.String(p1, s1, olc::Colour::WHITE, { 4, 4 });
+            } else if (initialCutsceneTimer > 2) {
+                std::string s1 = "READY";
+                olc::vf2d p1 = { ScreenSize().x / 2.f - (s1.size() / 2.f) * 32, ScreenSize().y / 2.f };
+                draw.String(p1, s1, olc::Colour::WHITE, { 4, 4 });
+            }
+            if (initialCutsceneTimer > 5) {
+                initialCutscene = false;
+            }
+        }
         return true;
     }
 
@@ -681,6 +712,9 @@ private:
         }
     }
 
+    bool initialCutscene;
+    float initialCutsceneTimer;
+
     bool gameOver;
     float gameTimer;
     static constexpr float TOTAL_GAME_TIME = 90.0f;
@@ -735,6 +769,15 @@ private:
 
         exchangeRate = 0;
         renderExchangeRateTimer = 0;
+
+        // Setup initial cutscene
+        initialCutscene = true;
+        initialCutsceneTimer = 0;
+        for (Coin& coin : coins) {
+            coin.isExchanging = true;
+        }
+        exchangeProcessing = true;
+        exchangeProcessingTimer = TIME_EXCHANGE_ANIM;
 
         gameTimer = TOTAL_GAME_TIME;
         gameOver = false;
