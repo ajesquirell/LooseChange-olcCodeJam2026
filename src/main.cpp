@@ -209,38 +209,54 @@ public:
             float totalScore = std::accumulate(coins.begin(), coins.end(), 0.0f, [](float acc, const Coin& c) {
                 return acc + c.value;
             });
-            std::string title, description;
 
-            if (totalScore < 0.005f) {
-                title = "Inflation Donation";
-                description = "The economy thanks you\nfor your sacrifice";
-            } else if (totalScore < 4) {
-                title = "Lost Change";
-                description = "Your change was loose.\nYour grip was looser...";
-            } else if (totalScore < 25) {
-                title = "Couch Cushion Prospector";
-                description = "You found money... and some crumbs";
-            } else if (totalScore < 50) {
-                title = "Small Coins, Big Plans";
-                description = "If only you had bigger pockets...";
-            } else if (totalScore < 100) {
-                title = "Change Hustler";
-                description = "Loose change. Tight operation.";
-            } else if (totalScore < 250) {
-                title = "Chancellor of Change";
-                description = "Your pockets now have a\nfinance department";
-            } else {
-                title = "The Changefather";
-                description = "You made inflation an offer\nit couldn't refuse";
-            }
+            static const std::array<float, 5> scores{ 4, 25, 50, 100, 250 };
+            auto get_strings = [](float totalScore) {
+                std::string title, description;
+                if (totalScore < 0.005f) {
+                    title = "Inflation Donation";
+                    description = "The economy thanks you\nfor your sacrifice";
+                } else if (totalScore < scores[0]) {
+                    title = "Lost Change";
+                    description = "Your change was loose.\nYour grip was looser...";
+                } else if (totalScore < scores[1]) {
+                    title = "Couch Cushion Prospector";
+                    description = "You found money... and some crumbs";
+                } else if (totalScore < scores[2]) {
+                    title = "Small Coins, Big Plans";
+                    description = "If only you had bigger pockets...";
+                } else if (totalScore < scores[3]) {
+                    title = "Change Hustler";
+                    description = "Loose change. Tight operation.";
+                } else if (totalScore < scores[4]) {
+                    title = "Chancellor of Change";
+                    description = "Your pockets now have a\nfinance department";
+                } else {
+                    title = "The Changefather";
+                    description = "You made inflation an offer\nit couldn't refuse";
+                }
+                return std::make_pair(title, description);
+            };
             auto pos = [this](std::string s, float size) {
                 int l = std::find(s.begin(), s.end(), '\n') - s.begin();
                 return ScreenSize().x / 2.0f - ((l / 2.0f) * size * 8);
             };
 
-            draw.FilledEllipse({ ScreenSize().x / 2.f, ScreenSize().y / 2.f + 25 },
+            std::string title, description;
+            std::tie(title, description) = get_strings(totalScore);
+
+            std::string nextTitleMsg1 = "You reached the highest rank!";
+            std::string nextTitleMsg2 = "Keep the change";
+            auto next_score_it =
+                std::find_if(scores.begin(), scores.end(), [totalScore](float s) { return s > totalScore; });
+            if (next_score_it != scores.end()) {
+                nextTitleMsg1 = std::format("Collect ${:.2f} more to become", *next_score_it - totalScore);
+                nextTitleMsg2 = get_strings(*next_score_it).first;
+            }
+
+            draw.FilledEllipse({ ScreenSize().x / 2.f, ScreenSize().y / 2.f + 20 },
                                ScreenSize().x / 2.f,
-                               95.f,
+                               90.f,
                                olc::Colour::DARK_YELLOW,
                                olc::Colour::BLANK,
                                olc::Colour::WHITE);
@@ -251,6 +267,8 @@ public:
             std::string s3a = "You earned the title:";
             std::string s3 = title;
             std::string s4 = description;
+            std::string s4a = nextTitleMsg1;
+            std::string s4b = nextTitleMsg2;
             std::string s5 = "Press SPACE to restart!";
             float y = ScreenSize().y / 6.f;
             draw.String({ pos(s1, 3), y }, s1, olc::Colour::RED, { 3, 3 });
@@ -268,6 +286,9 @@ public:
             y += 36;
             draw.String({ pos(s4, 2), y }, s4, olc::Colour::MAGENTA, { 2, 2 });
             y += 24;
+
+            draw.String({ pos(s4a, 2), ScreenSize().y - 70.f }, s4a, olc::Colour::WHITE, { 2, 2 });
+            draw.String({ pos(s4b, 2), ScreenSize().y - 52.f }, s4b, olc::Colour::DARK_GREEN, { 2, 2 });
             draw.String({ pos(s5, 3), ScreenSize().y - 24.f }, s5, olc::Colour::BLUE, { 3, 3 });
 
             if (keyboard.GetKey(olc::Key::SPACE).bReleased) {
