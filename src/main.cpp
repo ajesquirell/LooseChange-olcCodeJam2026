@@ -97,8 +97,7 @@ public:
     // Called once at the start, so create things here
     bool OnUserCreate() override
     {
-        // load `assets/song1.mp3` into `song1`
-        audio.CreateSoundFromFile(song1, "assets/song1.mp3");
+        audio.CreateSoundFromFile(music, "assets/music.mp3");
 
         /**
          * this is here to demonstrate how the adventurous can
@@ -108,7 +107,8 @@ public:
          * Here you get a pointer to a next active voice, or the
          * currently playing voice.
          */
-        ma_sound_set_position(song1.GetMASound(), 0.0f, 0.0f, 0.0f);
+        ma_sound_set_position(music.GetMASound(), 0.0f, 0.0f, 0.0f);
+        music.Play(true);
 
         // load `assets/SampleA.wav` into `sample`
         audio.CreateSoundFromFile(sample, "assets/SampleA.wav");
@@ -125,6 +125,7 @@ public:
         goldCoin.LoadFromFile(this, "assets/coins/gold.png", 5, coinPxSize, 0.1);
         gemCoin.LoadFromFile(this, "assets/coins/gem.png", 4, coinPxSize, 0.1);
         exCHANGE.LoadFromFile(this, "assets/exCHANGEr_anim.png", 9, 40, 144, 0.1, true);
+        player.LoadFromFile(this, "assets/player.png", 8, 24, 0.1);
 
         ResetGame();
 
@@ -205,19 +206,69 @@ public:
             draw.FilledRect({ 0, 0 }, ScreenSize(), overlayColor);
         }
         if (gameOver) {
-            float totalScore =
-                std::accumulate(coins.begin(), coins.end(), 0, [](float acc, const Coin& c) { return acc + c.value; });
-            std::string s1 = "GAME OVER";
-            std::string s2 = std::format("TOTAL SCORE: ${:.2f}", totalScore);
-            std::string s3 = "Press SPACE to restart!";
-            float p1 = ScreenSize().x / 2.0f - ((s1.size() / 2.0f) * 32);
-            float p2 = ScreenSize().x / 2.0f - ((s2.size() / 2.0f) * 24);
-            float p3 = ScreenSize().x / 2.0f - ((s3.size() / 2.0f) * 24);
-            draw.String({ p1, ScreenSize().y / 6.f }, s1, olc::Colour::RED, { 4, 4 });
-            draw.String({ p2, ScreenSize().y / 6.f + 48 }, s2, olc::Colour::WHITE, { 3, 3 });
+            float totalScore = std::accumulate(coins.begin(), coins.end(), 0.0f, [](float acc, const Coin& c) {
+                return acc + c.value;
+            });
+            std::string title, description;
 
-            // TODO list of scores and how good you did!!!!!
-            draw.String({ p3, ScreenSize().y / 6.f + 96 }, s3, olc::Colour::BLUE, { 3, 3 });
+            if (totalScore < 0.005f) {
+                title = "Inflation Donation";
+                description = "The economy thanks you\nfor your sacrifice";
+            } else if (totalScore < 4) {
+                title = "Lost Change";
+                description = "Your change was loose.\nYour grip was looser...";
+            } else if (totalScore < 25) {
+                title = "Couch Cushion Prospector";
+                description = "You found money... and some crumbs";
+            } else if (totalScore < 50) {
+                title = "Small Coins, Big Plans";
+                description = "If only you had bigger pockets...";
+            } else if (totalScore < 100) {
+                title = "Change Hustler";
+                description = "Loose change. Tight operation.";
+            } else if (totalScore < 250) {
+                title = "Chancellor of Change";
+                description = "Your pockets now have a\nfinance department";
+            } else {
+                title = "The Changefather";
+                description = "You made inflation an offer\nit couldn't refuse";
+            }
+            auto pos = [this](std::string s, float size) {
+                int l = std::find(s.begin(), s.end(), '\n') - s.begin();
+                return ScreenSize().x / 2.0f - ((l / 2.0f) * size * 8);
+            };
+
+            draw.FilledEllipse({ ScreenSize().x / 2.f, ScreenSize().y / 2.f + 25 },
+                               ScreenSize().x / 2.f,
+                               95.f,
+                               olc::Colour::DARK_YELLOW,
+                               olc::Colour::BLANK,
+                               olc::Colour::WHITE);
+
+            std::string s1 = "Your CHANGE Of Fortune:";
+            std::string s2 = "Loose change collected: ";
+            std::string s2b = std::format("${:.2f}", totalScore);
+            std::string s3a = "You earned the title:";
+            std::string s3 = title;
+            std::string s4 = description;
+            std::string s5 = "Press SPACE to restart!";
+            float y = ScreenSize().y / 6.f;
+            draw.String({ pos(s1, 3), y }, s1, olc::Colour::RED, { 3, 3 });
+            y += 32;
+            draw.String({ pos(s2, 2) - 50, y }, s2, olc::Colour::WHITE, { 2, 2 });
+            draw.String({ pos(s2b, 2) + 200, y }, s2b, olc::Colour::CYAN, { 2, 2 });
+            y += 48;
+            draw.String({ pos(s3a, 2), y }, s3a, olc::Colour::WHITE, { 2, 2 });
+            y += 36;
+            olc::tf2d transform;
+            transform.shear(olc::vf2d{ -0.25f, 0.0f });
+            // draw.SetWorldTransform(transform);
+            draw.String({ pos(s3, 3), y }, s3, olc::Colour::GREEN, { 3, 3 });
+            // draw.WorldReset();
+            y += 36;
+            draw.String({ pos(s4, 2), y }, s4, olc::Colour::MAGENTA, { 2, 2 });
+            y += 24;
+            draw.String({ pos(s5, 3), ScreenSize().y - 24.f }, s5, olc::Colour::BLUE, { 3, 3 });
 
             if (keyboard.GetKey(olc::Key::SPACE).bReleased) {
                 ResetGame();
@@ -227,37 +278,40 @@ public:
 
         float normRemainingGameTime = gameTimer / TOTAL_GAME_TIME;
 
+        bool playerMoving = false;
         if (!initialCutscene) {
             bool up = keyboard.GetKey(olc::Key::UP).bHeld || keyboard.GetKey(olc::Key::W).bHeld;
             bool down = keyboard.GetKey(olc::Key::DOWN).bHeld || keyboard.GetKey(olc::Key::S).bHeld;
             bool left = keyboard.GetKey(olc::Key::LEFT).bHeld || keyboard.GetKey(olc::Key::A).bHeld;
             bool right = keyboard.GetKey(olc::Key::RIGHT).bHeld || keyboard.GetKey(olc::Key::D).bHeld;
 
-            olc::vf2d dir;
-            if (up) dir.y -= 1;
-            if (down) dir.y += 1;
-            if (left) dir.x -= 1;
-            if (right) dir.x += 1;
+            olc::vf2d newDir = { 0, 0 };
+            if (up) newDir.y -= 1;
+            if (down) newDir.y += 1;
+            if (left) newDir.x -= 1;
+            if (right) newDir.x += 1;
 
-            if (dir.mag2() > 0) {
-                playerPos += dir.norm() * playerSpeed * fElapsedTime;
+            if (newDir.mag2() > 0) {
+                playerDir = newDir;
+                playerPos += playerDir.norm() * playerSpeed * fElapsedTime;
+                playerMoving = true;
             }
         }
 
-        if (playerPos.x < boardPosStart.x + playerSize.x) playerPos.x = boardPosStart.x + playerSize.x;
-        if (playerPos.x > exchangeX - playerSize.x) playerPos.x = exchangeX - playerSize.x;
-        if (playerPos.y < boardPosStart.y + playerSize.y) playerPos.y = boardPosStart.y + playerSize.y;
-        if (playerPos.y > ScreenSize().y - playerSize.y) playerPos.y = ScreenSize().y - playerSize.y;
+        olc::vf2d halfPlayerSize = playerSize * 0.5f;
+        if (playerPos.x < boardPosStart.x + halfPlayerSize.x) playerPos.x = boardPosStart.x + halfPlayerSize.x;
+        if (playerPos.x > exchangeX - halfPlayerSize.x) playerPos.x = exchangeX - halfPlayerSize.x;
+        if (playerPos.y < boardPosStart.y + halfPlayerSize.y) playerPos.y = boardPosStart.y + halfPlayerSize.y;
+        if (playerPos.y > ScreenSize().y - halfPlayerSize.y) playerPos.y = ScreenSize().y - halfPlayerSize.y;
 
         // Player collisions with coins
-        utils::geom2d::circle<float> playerCircle(playerPos,
-                                                  playerSize.x); // TODO change to rect intersection with a real sprite
+        utils::geom2d::rect<float> playerRect(playerPos - halfPlayerSize, playerSize);
         for (Coin& coin : coins) {
             if (!coin.IsVisibleOnBoard()) continue;
             olc::vf2d coinPos = coin.GetPos(*this);
             utils::geom2d::rect<float> coinRect({ coinPos.x, coinPos.y }, { coinPxSize, coinPxSize });
 
-            if (utils::geom2d::overlaps(playerCircle, coinRect)) {
+            if (utils::geom2d::overlaps(playerRect, coinRect)) {
                 coin.isAcquired = true;
             }
         }
@@ -289,7 +343,7 @@ public:
         }
 
         // Handle player at the exCHANGE
-        if (playerPos.x >= exchangeX - playerSize.x - 2 && playerPos.y >= exchangeYStart &&
+        if (playerPos.x >= exchangeX - halfPlayerSize.x - 2 && playerPos.y >= exchangeYStart &&
             playerPos.y <= exchangeYEnd && nCoinsAcquired > 0 && !ExchangeBusy())
         {
             exchangeProcessing = true;
@@ -363,7 +417,7 @@ public:
                 boardTimer = TIMER_DURATION_UPDATING_FADEIN;
                 boardState = UPDATING_FADEIN;
                 // Probability of safe tiles gets less and less throughout the game
-                constexpr float min = 0.15;
+                constexpr float min = 0.30;
                 constexpr float max = 0.80;
                 float probability = (max - min) * normRemainingGameTime + min;
                 std::bernoulli_distribution randomBool(probability);
@@ -484,7 +538,14 @@ public:
         }
 
         // Draw Player
-        draw.FilledCircle(playerPos, 5, olc::Colour::GREEN);
+        player.Update(fElapsedTime);
+        float angle = playerDir.polar().y + M_PI / 2;
+        if (playerMoving) {
+            draw.ImageRotated(player.GetFrame(), playerPos, angle, halfPlayerSize);
+        } else {
+            player.Reset();
+            draw.ImageRotated(player.GetStaticFrame(), playerPos, angle, halfPlayerSize);
+        }
 
         // Draw pulsing box shadow around screen
         static float pulsingTimer = 0;
@@ -495,7 +556,7 @@ public:
             olc::Pixel blank = olc::Colour::BLANK;
 
             pulsingTimer += fElapsedTime;
-            float vignetteSize = 30.0f + std::cos(pulsingTimer * 2 * M_PI) * -10;
+            float vignetteSize = 10.0f + std::cos(pulsingTimer * 2 * M_PI) * -6;
 
             draw.FilledRect({ 0, 0 }, { width, vignetteSize }, col, col, blank, blank);
             draw.FilledRect({ 0, height - vignetteSize }, { width, vignetteSize }, blank, blank, col, col);
@@ -508,7 +569,7 @@ public:
         // Draw top info
 
         if (playerInTheRed) {
-            draw.String({ 25, 25 },
+            draw.String({ 20, 20 },
                         std::format("MEGA\nInflation!", megaInflationRate * 100),
                         olc::Colour::DARK_RED,
                         { 1.8, 1.8 });
@@ -577,7 +638,7 @@ public:
 
 private:
     // sounds
-    olc::ext::Miniaudio::Sound song1;
+    olc::ext::Miniaudio::Sound music;
     olc::ext::Miniaudio::Sound sample;
 
     olc::ext::Miniaudio::Waveform sine;
@@ -593,6 +654,7 @@ private:
 
     olc::vf2d playerPos;
     olc::vf2d playerSize;
+    olc::vf2d playerDir;
     const float playerSpeed = 150.0f;
 
     struct Board
@@ -674,10 +736,6 @@ private:
     static constexpr float baseInflationRate = 0.03f; // Percent per second
     static constexpr float megaInflationRate = baseInflationRate * 4;
 
-    // Static increments where inflation rate increases, per coin (seconds)
-    static constexpr float HELD_TIME_PENALTY = 5.0f;
-    static constexpr int PENALTY_INCREMENT_LIMIT = 4;
-
     static constexpr float exchangeX = 560.f;
     static constexpr float exchangeYStart = 168.f;
     static constexpr float exchangeYEnd = 264.f;
@@ -700,11 +758,11 @@ private:
     {
         switch (nCoins) {
         case 1:
-            return 1.1f;
+            return 1.2f;
         case 2:
-            return 1.3f;
+            return 1.5f;
         case 3:
-            return 1.6f;
+            return 1.8f;
         case 4:
             return 2.0f;
         default:
@@ -728,12 +786,13 @@ private:
     Animator goldCoin;
     Animator gemCoin;
     Animator exCHANGE;
+    Animator player;
 
     // Randomness helpers
     std::mt19937 gen;
 
     // TODO make a PR that fixes the need to do this?
-    static constexpr olc::Pixel overlayColor{ olc::Colour::BLACK.r, olc::Colour::BLACK.g, olc::Colour::BLACK.b, 150 };
+    static constexpr olc::Pixel overlayColor{ olc::Colour::BLACK.r, olc::Colour::BLACK.g, olc::Colour::BLACK.b, 220 };
 
     void ResetGame()
     {
@@ -750,7 +809,8 @@ private:
 
         // Player start on middle tile, which is always safe to start
         playerPos = { boardPosStart.x + boardPxSize.x / 2.f, boardPosStart.y + boardPxSize.y / 2.f };
-        playerSize = { 5, 5 };
+        playerSize = { 24, 24 };
+        playerDir = { 0, 0 };
 
         tileSize = { boardPxSize.x / board.size.x, boardPxSize.y / board.size.y };
 
@@ -778,6 +838,7 @@ private:
         }
         exchangeProcessing = true;
         exchangeProcessingTimer = TIME_EXCHANGE_ANIM;
+        exCHANGE.Reset();
 
         gameTimer = TOTAL_GAME_TIME;
         gameOver = false;
