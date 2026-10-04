@@ -589,13 +589,14 @@ public:
 
         // Draw top info
 
+        draw.String({ 5, 8 }, "Arrows / WASD to play");
+        draw.String({ 5, 18 }, "ESC to pause");
         if (playerInTheRed) {
-            draw.String({ 20, 20 },
-                        std::format("MEGA\nInflation!", megaInflationRate * 100),
-                        olc::Colour::DARK_RED,
-                        { 1.8, 1.8 });
+            draw.String({ 5, 40 },
+                        std::format("Inflation: {:.0f}% / sec", megaInflationRate * 100),
+                        olc::Colour::DARK_RED);
         } else {
-            draw.String({ 5, 20 }, std::format("Inflation: {:.0f}% / sec", baseInflationRate * 100));
+            draw.String({ 5, 40 }, std::format("Inflation: {:.0f}% / sec", baseInflationRate * 100));
         }
 
         float totalScore = 0;
