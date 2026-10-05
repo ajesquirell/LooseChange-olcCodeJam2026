@@ -109,6 +109,7 @@ public:
          */
         ma_sound_set_position(music.GetMASound(), 0.0f, 0.0f, 0.0f);
         music.Play(true);
+        audio.EnableBackgroundPlayback();
 
         // load `assets/SampleA.wav` into `sample`
         audio.CreateSoundFromFile(sample, "assets/SampleA.wav");
