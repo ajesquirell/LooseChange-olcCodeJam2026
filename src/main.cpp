@@ -787,13 +787,13 @@ private:
     private:
         Animator& get_animator(LooseChangeEngine& engine) const
         {
-            if (value > 10.0f) {
+            if (value >= 10.0f) {
                 return engine.gemCoin;
             }
-            if (value > 5.0f) {
+            if (value >= 5.0f) {
                 return engine.goldCoin;
             }
-            if (value > 2.0f) {
+            if (value >= 2.0f) {
                 return engine.silverCoin;
             }
             return engine.bronzeCoin;
