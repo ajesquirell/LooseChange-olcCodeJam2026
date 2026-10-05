@@ -97,17 +97,10 @@ public:
     // Called once at the start, so create things here
     bool OnUserCreate() override
     {
+        isTitleScreen = true;
+        isRulesScreen = false;
         audio.CreateSoundFromFile(music, "assets/music.mp3");
 
-        /**
-         * this is here to demonstrate how the adventurous can
-         * exploit other features of miniaudio that hasn't been
-         * abstracted by the PGEX
-         *
-         * Here you get a pointer to a next active voice, or the
-         * currently playing voice.
-         */
-        ma_sound_set_position(music.GetMASound(), 0.0f, 0.0f, 0.0f);
         music.Play(true);
         audio.EnableBackgroundPlayback();
 
@@ -119,6 +112,8 @@ public:
         audio.CreateWaveform(square, olc::ext::Miniaudio::Waveform::Type::Square, 0.1, 440.0);
         audio.CreateWaveform(triangle, olc::ext::Miniaudio::Waveform::Type::Triangle, 0.1, 440.0);
         audio.CreateWaveform(sawtooth, olc::ext::Miniaudio::Waveform::Type::Sawtooth, 0.1, 440.0);
+
+        CreateImageFromFile(titleScreen, "assets/LooseChangeTItlePageWithPgeLogoSmall.png");
 
         CreateImageFromFile(background, "assets/repeated-square.png");
         bronzeCoin.LoadFromFile(this, "assets/coins/bronze.png", 5, coinPxSize, 0.1);
@@ -191,6 +186,62 @@ public:
         // ma_engine_listener_set_position(&audio.GetEngine(), 0, 0.0f, distance,
         //                                 0.0f);
 
+        if (isTitleScreen) {
+            static float pulsingTimer = 0;
+            pulsingTimer += fElapsedTime;
+            if (pulsingTimer > 1) pulsingTimer = 0;
+            float t = std::sin(pulsingTimer * M_PI);
+            draw.Clear(olc::Colour::BLACK);
+            draw.ImageRect(titleScreen, { 93, 0 }, { 453, (float)ScreenSize().y });
+            draw.String({ 120.f, ScreenSize().y - 24.f },
+                        "Press SPACE!",
+                        olc::Colour::WHITE.blend({ 0, 0, 0, (uint8_t)(t * 255) }),
+                        { 2, 2 });
+            if (keyboard.GetKey(olc::Key::SPACE).bReleased) {
+                isTitleScreen = false;
+                isRulesScreen = true;
+            }
+            return true;
+        }
+        if (isRulesScreen) {
+            draw.Clear(olc::Colour::BLACK);
+            draw.String({ CenterText("RULES:", 3), 2 }, "RULES:", olc::Colour::DARK_GREEN, { 3, 3 });
+            float x = 72.f;
+            float x_ = x + 32;
+            float y = 40.f, yIndex = 36.f, yIndexLine = 18;
+            draw.String({ x, y }, "- Move: Arrows or WASD", olc::Colour::WHITE, { 2, 2 });
+            y += yIndex;
+            draw.String({ x, y }, "- Collect coins and boost their", olc::Colour::WHITE, { 2, 2 });
+            y += yIndexLine;
+            draw.String({ x_, y }, "value at the exCHANGE", olc::Colour::WHITE, { 2, 2 });
+            y += yIndex;
+            draw.String({ x, y }, "- Held coins lose value", olc::Colour::WHITE, { 2, 2 });
+            y += yIndexLine;
+            draw.String({ x_, y }, "due to inflation", olc::Colour::WHITE, { 2, 2 });
+            y += yIndex;
+            draw.String({ x, y }, "-", olc::Colour::WHITE, { 2, 2 });
+            draw.String({ x_, y }, "Blue tiles: GOOD", olc::Colour::BLUE, { 2, 2 });
+            y += yIndexLine;
+            draw.String({ x_, y }, "Red tiles:  BAD", olc::Colour::RED, { 2, 2 });
+            y += yIndexLine;
+            draw.String({ x_, y }, "(triggers mega inflation for ALL coins!)", olc::Colour::RED, { 1.5, 1.5 });
+            y += yIndex;
+            draw.String({ x, y }, "- Exchange more coins at once", olc::Colour::WHITE, { 2, 2 });
+            y += yIndexLine;
+            draw.String({ x_, y }, "for bigger multipliers", olc::Colour::WHITE, { 2, 2 });
+            y += yIndex;
+            draw.String({ x, y }, "- 90 seconds is all you have", olc::Colour::WHITE, { 2, 2 });
+
+            draw.String({ CenterText("Press SPACE to begin!", 2), ScreenSize().y - 20.f },
+                        "Press SPACE to begin!",
+                        olc::Colour::DARK_GREEN,
+                        { 2, 2 });
+            if (keyboard.GetKey(olc::Key::SPACE).bReleased) {
+                isRulesScreen = false;
+            }
+            return true;
+        }
+
         if (keyboard.GetKey(olc::Key::ESCAPE).bPressed) {
             isPaused = !isPaused;
             draw.FilledRect({ 0, 0 }, ScreenSize(), overlayColor);
@@ -238,10 +289,6 @@ public:
                 }
                 return std::make_pair(title, description);
             };
-            auto pos = [this](std::string s, float size) {
-                int l = std::find(s.begin(), s.end(), '\n') - s.begin();
-                return ScreenSize().x / 2.0f - ((l / 2.0f) * size * 8);
-            };
 
             std::string title, description;
             std::tie(title, description) = get_strings(totalScore);
@@ -272,25 +319,25 @@ public:
             std::string s4b = nextTitleMsg2;
             std::string s5 = "Press SPACE to restart!";
             float y = ScreenSize().y / 6.f;
-            draw.String({ pos(s1, 3), y }, s1, olc::Colour::RED, { 3, 3 });
+            draw.String({ CenterText(s1, 3), y }, s1, olc::Colour::RED, { 3, 3 });
             y += 32;
-            draw.String({ pos(s2, 2) - 50, y }, s2, olc::Colour::WHITE, { 2, 2 });
-            draw.String({ pos(s2b, 2) + 200, y }, s2b, olc::Colour::CYAN, { 2, 2 });
+            draw.String({ CenterText(s2, 2) - 50, y }, s2, olc::Colour::WHITE, { 2, 2 });
+            draw.String({ CenterText(s2b, 2) + 200, y }, s2b, olc::Colour::CYAN, { 2, 2 });
             y += 48;
-            draw.String({ pos(s3a, 2), y }, s3a, olc::Colour::WHITE, { 2, 2 });
+            draw.String({ CenterText(s3a, 2), y }, s3a, olc::Colour::WHITE, { 2, 2 });
             y += 36;
             olc::tf2d transform;
             transform.shear(olc::vf2d{ -0.25f, 0.0f });
             // draw.SetWorldTransform(transform);
-            draw.String({ pos(s3, 3), y }, s3, olc::Colour::GREEN, { 3, 3 });
+            draw.String({ CenterText(s3, 3), y }, s3, olc::Colour::GREEN, { 3, 3 });
             // draw.WorldReset();
             y += 36;
-            draw.String({ pos(s4, 2), y }, s4, olc::Colour::MAGENTA, { 2, 2 });
+            draw.String({ CenterText(s4, 2), y }, s4, olc::Colour::MAGENTA, { 2, 2 });
             y += 24;
 
-            draw.String({ pos(s4a, 2), ScreenSize().y - 70.f }, s4a, olc::Colour::WHITE, { 2, 2 });
-            draw.String({ pos(s4b, 2), ScreenSize().y - 52.f }, s4b, olc::Colour::DARK_GREEN, { 2, 2 });
-            draw.String({ pos(s5, 3), ScreenSize().y - 24.f }, s5, olc::Colour::BLUE, { 3, 3 });
+            draw.String({ CenterText(s4a, 2), ScreenSize().y - 70.f }, s4a, olc::Colour::WHITE, { 2, 2 });
+            draw.String({ CenterText(s4b, 2), ScreenSize().y - 52.f }, s4b, olc::Colour::DARK_GREEN, { 2, 2 });
+            draw.String({ CenterText(s5, 3), ScreenSize().y - 24.f }, s5, olc::Colour::BLUE, { 3, 3 });
 
             if (keyboard.GetKey(olc::Key::SPACE).bReleased) {
                 ResetGame();
@@ -593,9 +640,8 @@ public:
         draw.String({ 5, 8 }, "Arrows / WASD to play");
         draw.String({ 5, 18 }, "ESC to pause");
         if (playerInTheRed) {
-            draw.String({ 5, 40 },
-                        std::format("Inflation: {:.0f}% / sec", megaInflationRate * 100),
-                        olc::Colour::DARK_RED);
+            draw.String(
+                { 5, 40 }, std::format("Inflation: {:.0f}% / sec", megaInflationRate * 100), olc::Colour::DARK_RED);
         } else {
             draw.String({ 5, 40 }, std::format("Inflation: {:.0f}% / sec", baseInflationRate * 100));
         }
@@ -802,7 +848,11 @@ private:
 
     bool isPaused;
 
+    bool isTitleScreen;
+    bool isRulesScreen;
+
     // Assets
+    olc::Image titleScreen;
     olc::Image background;
     Animator bronzeCoin;
     Animator silverCoin;
@@ -867,6 +917,12 @@ private:
         gameOver = false;
         isPaused = false;
     }
+
+    float CenterText(std::string s, float size)
+    {
+        int l = std::find(s.begin(), s.end(), '\n') - s.begin();
+        return ScreenSize().x / 2.0f - ((l / 2.0f) * size * 8);
+    };
 };
 
 // Main entry point for the application
