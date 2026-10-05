@@ -1,7 +1,5 @@
 // Define OLC_PGE3_APPLICATION to include the implementation of
 // the Pixel Game Engine as part of this translation unit
-#include <algorithm>
-#include <string>
 #define OLC_PGE3_APPLICATION
 #include "olcPixelGameEngine3.h"
 
@@ -10,8 +8,10 @@
 
 #include "utilities/olcUTIL3_Geometry2D.h"
 
+#include <algorithm>
 #include <format>
 #include <random>
+#include <string>
 
 class Animator
 {
@@ -100,18 +100,12 @@ public:
         isTitleScreen = true;
         isRulesScreen = false;
         audio.CreateSoundFromFile(music, "assets/music.mp3");
+        audio.CreateSoundFromFile(sound_get_coin, "assets/get_coin.mp3");
+        audio.CreateSoundFromFile(sound_exchange, "assets/exchange.mp3");
+        audio.CreateSoundFromFile(sound_coin_return, "assets/coin_return.mp3");
 
         music.Play(true);
         audio.EnableBackgroundPlayback();
-
-        // load `assets/SampleA.wav` into `sample`
-        audio.CreateSoundFromFile(sample, "assets/SampleA.wav");
-
-        // create all of the waveforms at 0.1 amplitude at 440Mhz (A4)
-        audio.CreateWaveform(sine, olc::ext::Miniaudio::Waveform::Type::Sine, 0.1, 440.0);
-        audio.CreateWaveform(square, olc::ext::Miniaudio::Waveform::Type::Square, 0.1, 440.0);
-        audio.CreateWaveform(triangle, olc::ext::Miniaudio::Waveform::Type::Triangle, 0.1, 440.0);
-        audio.CreateWaveform(sawtooth, olc::ext::Miniaudio::Waveform::Type::Sawtooth, 0.1, 440.0);
 
         CreateImageFromFile(titleScreen, "assets/LooseChangeTItlePageWithPgeLogoSmall.png");
 
@@ -131,61 +125,6 @@ public:
     // Called every frame, so update things here
     bool OnUserUpdate(float fElapsedTime) override
     {
-        // // toggle background playback
-        // if (keyboard.GetKey(olc::Key::K1).bPressed) {
-        //   backgroundPlay = !backgroundPlay;
-        //   if (backgroundPlay)
-        //     audio.EnableBackgroundPlayback();
-        //   else
-        //     audio.DisableBackgroundPlayback();
-        // }
-
-        // panning
-        // if (keyboard.GetKey(olc::Key::MINUS).bHeld)
-        //   pan -= 1.0f * fElapsedTime;
-        //
-        // if (keyboard.GetKey(olc::Key::EQUALS).bHeld)
-        //   pan += 1.0f * fElapsedTime;
-        //
-        // // pitch
-        // if (keyboard.GetKey(olc::Key::OEM_4).bHeld)
-        //   pitch -= 1.0f * fElapsedTime;
-        //
-        // if (keyboard.GetKey(olc::Key::OEM_6).bHeld)
-        //   pitch += 1.0f * fElapsedTime;
-        //
-        // // volume
-        // if (keyboard.GetKey(olc::Key::DOWN).bHeld)
-        //   volume -= 1.0f * fElapsedTime;
-        //
-        // if (keyboard.GetKey(olc::Key::UP).bHeld)
-        //   volume += 1.0f * fElapsedTime;
-        //
-        // // distance
-        // if (keyboard.GetKey(olc::Key::LEFT).bHeld)
-        //   distance -= 10.0f * fElapsedTime;
-        //
-        // if (keyboard.GetKey(olc::Key::RIGHT).bHeld)
-        //   distance += 10.0f * fElapsedTime;
-
-        // panning
-        // pan = std::clamp(pan, -1.0f, 1.0f);
-        // song1.SetPan(pan);
-        //
-        // // pitch
-        // pitch = std::clamp(pitch, 0.0f, 2.0f);
-        // song1.SetPitch(pitch);
-        //
-        // // volume
-        // volume = std::clamp(volume, 0.0f, 1.0f);
-        // song1.SetVolume(volume);
-
-        // this is here to demosntrate how the adventurous can exploit other
-        // features of miniaudio that haven't been abstracted by the PGEX.
-        // distance = std::clamp(distance, 0.0f, 100.0f);
-        // ma_engine_listener_set_position(&audio.GetEngine(), 0, 0.0f, distance,
-        //                                 0.0f);
-
         if (isTitleScreen) {
             static float pulsingTimer = 0;
             pulsingTimer += fElapsedTime;
@@ -382,6 +321,7 @@ public:
 
             if (utils::geom2d::overlaps(playerRect, coinRect)) {
                 coin.isAcquired = true;
+                sound_get_coin.Play();
             }
         }
 
@@ -418,6 +358,7 @@ public:
             exchangeProcessing = true;
             exchangeProcessingTimer = TIME_EXCHANGE_ANIM;
             exCHANGE.Reset();
+            sound_exchange.Play();
 
             exchangeRate = GetExchangeRate(nCoinsAcquired);
 
@@ -454,6 +395,7 @@ public:
                 coinsFlying = true;
                 coinsFlyingTimer = 1;
                 renderExchangeRateTimer = 1;
+                sound_coin_return.Play();
             }
         }
 
@@ -708,12 +650,9 @@ public:
 private:
     // sounds
     olc::ext::Miniaudio::Sound music;
-    olc::ext::Miniaudio::Sound sample;
-
-    olc::ext::Miniaudio::Waveform sine;
-    olc::ext::Miniaudio::Waveform square;
-    olc::ext::Miniaudio::Waveform triangle;
-    olc::ext::Miniaudio::Waveform sawtooth;
+    olc::ext::Miniaudio::Sound sound_get_coin;
+    olc::ext::Miniaudio::Sound sound_exchange;
+    olc::ext::Miniaudio::Sound sound_coin_return;
 
     // For demonstration controls, with sensible default values
     float pan = 0.0f;
