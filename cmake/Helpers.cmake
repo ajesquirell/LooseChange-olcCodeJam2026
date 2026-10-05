@@ -153,6 +153,8 @@ function(pge3_add_program PROGRAM_NAME)
         target_link_options(${PROGRAM_NAME} PRIVATE -sMIN_WEBGL_VERSION=2)
         target_link_options(${PROGRAM_NAME} PRIVATE -sUSE_LIBPNG=1)
         target_link_options(${PROGRAM_NAME} PRIVATE -sLLD_REPORT_UNDEFINED)
+        target_link_options(${PROGRAM_NAME} PRIVATE --shell-file "${CMAKE_SOURCE_DIR}/basic_template.html"
+)
     endif()
 endfunction()
 
