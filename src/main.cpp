@@ -684,7 +684,7 @@ public:
             if (initialCutsceneTimer > 4) {
                 std::string s1 = "exCHANGE!";
                 olc::vf2d p1 = { ScreenSize().x / 2.f - (s1.size() / 2.f) * 48, ScreenSize().y / 2.f };
-                draw.FilledRoundedRect({ 94, ScreenSize().y / 2.f - 6 }, { 444, 58 }, 5, olc::Colour::VERY_DARK_GREY);
+                draw.FilledRoundedRect({ 94, ScreenSize().y / 2.f - 6 }, { 444, 58 }, 5, olc::Colour::DARK_GREEN);
                 draw.String(p1, s1, olc::Colour::WHITE, { 6, 6 });
             } else if (initialCutsceneTimer > 3) {
                 std::string s1 = "SET";
