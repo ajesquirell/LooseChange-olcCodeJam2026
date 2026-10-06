@@ -1,4 +1,16 @@
-# PGE Template Project v3.00
+# Loose Change - Submission to the olc::CodeJam 2026
+
+Made in a week for the [olc::CodeJam 2026](https://itch.io/jam/olc-codejam-2026) - Theme for the jam was "Change".
+
+Online playable version available [HERE](https://ajsquirrel.itch.io/loose-change) and the jam submission page [HERE](https://itch.io/jam/olc-codejam-2026/rate/5098567)
+
+Uses the [olcPixelGameEngine3](https://github.com/OneLoneCoder/olcPixelGameEngine3) by Javidx9
+
+This project was built from the [PGE3 Template Project](https://github.com/Moros1138/pge3-template-project) by Moros1138. Below are the setup and build steps from that project.
+
+---
+
+## PGE Template Project v3.00
 
 This is a template project for use with the [olcPixelGameEngine3](https://github.com/OneLoneCoder/olcPixelGameEngine3). It serves as a jumping off point for you to build your masterpiece application.
 
