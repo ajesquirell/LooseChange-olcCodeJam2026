@@ -3,13 +3,15 @@ project(LooseChange)
  
 include(FetchContent)
 
-# Force FetchContent to always check for updates
-set(FETCHCONTENT_UPDATES_DISCONNECTED OFF)
+# No longer want updates from develop branch - I just want to use the commits used for the jam so future buils work the same
+set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
+
+set(OLC_PGE3_REV "8a51d72580a6497aaa0510eec5475a96906f0ba4")
 
 # Fetch olcPixelGameEngine3.h
 FetchContent_Declare(
     olcPixelGameEngine3
-    URL "https://raw.githubusercontent.com/OneLoneCoder/olcPixelGameEngine3/develop/olcPixelGameEngine3.h"
+    URL "https://raw.githubusercontent.com/OneLoneCoder/olcPixelGameEngine3/${OLC_PGE3_REV}/olcPixelGameEngine3.h"
     DOWNLOAD_NO_EXTRACT ON
     SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/olcpixelgameengine3-src"
 )
@@ -18,7 +20,7 @@ FetchContent_Declare(
 foreach(UTIL Animate2D Camera2D GameMode Geometry2D QuadTree)
     FetchContent_Declare(
         olcUTIL3_${UTIL}
-        URL "https://raw.githubusercontent.com/OneLoneCoder/olcPixelGameEngine3/develop/utilities/olcUTIL3_${UTIL}.h"
+        URL "https://raw.githubusercontent.com/OneLoneCoder/olcPixelGameEngine3/${OLC_PGE3_REV}/utilities/olcUTIL3_${UTIL}.h"
         DOWNLOAD_NO_EXTRACT ON
         SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/olcpixelgameengine3-src/utilities"
     )
@@ -36,7 +38,7 @@ FetchContent_Declare(
 # Fetch olcPGE3_Miniaudio.h
 FetchContent_Declare(
     olcPGEX3_Miniaudio
-    URL "https://raw.githubusercontent.com/OneLoneCoder/olcPixelGameEngine3/develop/extensions/miniaudio/olcPGEX3_Miniaudio.h"
+    URL "https://raw.githubusercontent.com/OneLoneCoder/olcPixelGameEngine3/${OLC_PGE3_REV}/extensions/miniaudio/olcPGEX3_Miniaudio.h"
     DOWNLOAD_NO_EXTRACT ON
     SOURCE_DIR "${CMAKE_BINARY_DIR}/_deps/olcpixelgameengine3-src/extensions/miniaudio"
 )
