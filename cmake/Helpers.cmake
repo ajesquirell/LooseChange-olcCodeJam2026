@@ -6,64 +6,69 @@ function(pge3_prepare_platforms)
         execute_process(COMMAND "${EMSCRIPTEN_ROOT_PATH}/embuilder${EMCC_SUFFIX}" build libpng zlib)
     endif()
 
-    if(UNIX AND BUILD_WAYLAND AND NOT WIN32)
+    if(UNIX AND NOT WIN32)
+
         find_package(PkgConfig REQUIRED)
-        pkg_check_modules(XKBCOMMON REQUIRED xkbcommon)
-        pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
-        pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
-        pkg_check_modules(EGL REQUIRED egl)
-        pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
-        pkg_check_modules(LIBDECOR REQUIRED IMPORTED_TARGET libdecor-0)
 
         find_package(OpenGL REQUIRED)
         find_package(PNG REQUIRED)
         find_package(Threads REQUIRED)
 
-        # Find wayland-scanner
-        find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
+        if(BUILD_WAYLAND)
+            pkg_check_modules(XKBCOMMON REQUIRED xkbcommon)
+            pkg_check_modules(WAYLAND_CLIENT REQUIRED wayland-client)
+            pkg_check_modules(WAYLAND_EGL REQUIRED wayland-egl)
+            pkg_check_modules(EGL REQUIRED egl)
+            pkg_check_modules(WAYLAND_CURSOR REQUIRED wayland-cursor)
+            pkg_check_modules(LIBDECOR REQUIRED IMPORTED_TARGET libdecor-0)
+        
+            # Find wayland-scanner
+            find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
 
-        function(generate_wayland_protocol PROTOCOL_TARGET PROTOCOL_FILE)
-            if(NOT EXISTS ${PROTOCOL_FILE})
-                message(FATAL_ERROR ${PROTOCOL_FILE} " not found. You may need to install wayland-protocols via your package manager")
-            endif()
+            function(generate_wayland_protocol PROTOCOL_TARGET PROTOCOL_FILE)
+                if(NOT EXISTS ${PROTOCOL_FILE})
+                    message(FATAL_ERROR ${PROTOCOL_FILE} " not found. You may need to install wayland-protocols via your package manager")
+                endif()
 
-            set(C_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/${PROTOCOL_TARGET}.c")
-            set(H_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/${PROTOCOL_TARGET}.h")
+                set(C_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/${PROTOCOL_TARGET}.c")
+                set(H_FILENAME "${CMAKE_CURRENT_BINARY_DIR}/${PROTOCOL_TARGET}.h")
 
-            add_custom_command(
-                OUTPUT ${C_FILENAME}
-                COMMAND ${WAYLAND_SCANNER} private-code ${PROTOCOL_FILE} ${C_FILENAME}
-                DEPENDS ${PROTOCOL_FILE}
-                VERBATIM
+                add_custom_command(
+                    OUTPUT ${C_FILENAME}
+                    COMMAND ${WAYLAND_SCANNER} private-code ${PROTOCOL_FILE} ${C_FILENAME}
+                    DEPENDS ${PROTOCOL_FILE}
+                    VERBATIM
+                )
+
+                add_custom_command(
+                    OUTPUT ${H_FILENAME}
+                    COMMAND ${WAYLAND_SCANNER} client-header ${PROTOCOL_FILE} ${H_FILENAME}
+                    DEPENDS ${PROTOCOL_FILE}
+                    VERBATIM
+                )
+
+                set_source_files_properties(${C_FILENAME} ${H_FILENAME} PROPERTIES GENERATED TRUE)
+
+                add_library(wayland_${PROTOCOL_TARGET} STATIC ${C_FILENAME} ${H_FILENAME})
+            endfunction()
+
+            generate_wayland_protocol("xdg-shell" "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
+            generate_wayland_protocol("pointer-warp" "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
+
+            # Create a library for the wayland protocol files
+            add_library(wayland_protocols INTERFACE)
+            target_link_libraries(wayland_protocols INTERFACE
+                wayland_xdg-shell
+                wayland_pointer-warp
             )
 
-            add_custom_command(
-                OUTPUT ${H_FILENAME}
-                COMMAND ${WAYLAND_SCANNER} client-header ${PROTOCOL_FILE} ${H_FILENAME}
-                DEPENDS ${PROTOCOL_FILE}
-                VERBATIM
+            target_include_directories(wayland_protocols INTERFACE
+                ${CMAKE_CURRENT_BINARY_DIR}
             )
-
-            set_source_files_properties(${C_FILENAME} ${H_FILENAME} PROPERTIES GENERATED TRUE)
-
-            add_library(wayland_${PROTOCOL_TARGET} STATIC ${C_FILENAME} ${H_FILENAME})
-        endfunction()
-
-        generate_wayland_protocol("xdg-shell" "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml")
-        generate_wayland_protocol("pointer-warp" "/usr/share/wayland-protocols/staging/pointer-warp/pointer-warp-v1.xml")
-
-        # Create a library for the wayland protocol files
-        add_library(wayland_protocols INTERFACE)
-        target_link_libraries(wayland_protocols INTERFACE
-            wayland_xdg-shell
-            wayland_pointer-warp
-        )
-
-        target_include_directories(wayland_protocols INTERFACE
-            ${CMAKE_CURRENT_BINARY_DIR}
-        )
+        else()
+            find_package(X11 REQUIRED)
+        endif()
     endif()
-
 endfunction()
 
 # Add an example to the project.
@@ -111,7 +116,7 @@ function(pge3_add_program PROGRAM_NAME)
                 ${WAYLAND_EGL_LIBRARIES}
                 ${WAYLAND_CURSOR_LIBRARIES}
                 ${EGL_LIBRARIES}
-                OpenGL::GL
+                OpenGL::OpenGL
                 PNG::PNG
                 Threads::Threads
             )
@@ -120,11 +125,11 @@ function(pge3_add_program PROGRAM_NAME)
             target_include_directories(${PROGRAM_NAME} PRIVATE ${LIBDECOR_INCLUDE_DIRS} )
 
         else() # x11
-            target_link_libraries(${PROGRAM_NAME} PRIVATE png)
-            target_link_libraries(${PROGRAM_NAME} PRIVATE GL)
-            target_link_libraries(${PROGRAM_NAME} PRIVATE pthread)
-            target_link_libraries(${PROGRAM_NAME} PRIVATE X11)
-            target_link_libraries(${PROGRAM_NAME} PRIVATE Xi)
+            target_link_libraries(${PROGRAM_NAME} PRIVATE PNG::PNG)
+            target_link_libraries(${PROGRAM_NAME} PRIVATE OpenGL::GL)
+            target_link_libraries(${PROGRAM_NAME} PRIVATE Threads::Threads)
+            target_link_libraries(${PROGRAM_NAME} PRIVATE X11::X11)
+            target_link_libraries(${PROGRAM_NAME} PRIVATE X11::Xi)
         endif()
         
         target_compile_options(${PROGRAM_NAME} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-fmax-errors=5>)
@@ -153,8 +158,7 @@ function(pge3_add_program PROGRAM_NAME)
         target_link_options(${PROGRAM_NAME} PRIVATE -sMIN_WEBGL_VERSION=2)
         target_link_options(${PROGRAM_NAME} PRIVATE -sUSE_LIBPNG=1)
         target_link_options(${PROGRAM_NAME} PRIVATE -sLLD_REPORT_UNDEFINED)
-        target_link_options(${PROGRAM_NAME} PRIVATE --shell-file "${CMAKE_SOURCE_DIR}/basic_template.html"
-)
+        target_link_options(${PROGRAM_NAME} PRIVATE --shell-file "${CMAKE_SOURCE_DIR}/basic_template.html")
     endif()
 endfunction()
 
