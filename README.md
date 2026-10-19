@@ -1,5 +1,8 @@
 # Loose Change - Submission to the olc::CodeJam 2026
 
+Won first place!
+<img width="1506" height="283" alt="image" src="https://github.com/user-attachments/assets/22d5daca-6bb9-4ee6-a176-b48d95731a41" />
+
 Made in a week for the [olc::CodeJam 2026](https://itch.io/jam/olc-codejam-2026) - Theme for the jam was "Change".
 
 Online playable version available [HERE](https://ajsquirrel.itch.io/loose-change) and the jam submission page [HERE](https://itch.io/jam/olc-codejam-2026/rate/5098567)
